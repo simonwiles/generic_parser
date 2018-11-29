@@ -82,7 +82,7 @@ For this set:
 
 -i would be Identifiers/PMID
 
-Other settings
+### Other settings
 
 **-n --namespace:** This setting can be used if the XML has a defined namespace. Currently XML with only one namespace can be managed by the parser. This setting is optional.
 
