@@ -24,6 +24,7 @@ table_dict = {}
 value_dict = {}
 ctr_dict = {}
 attrib_dict = {}
+attrib_defaults = {}
 file_number_dict = {}
 
 #Set these globally, but may need to change them via options between MySQL and PostgreSQL
@@ -132,7 +133,6 @@ def main():
 		with open(options.file_number_sheet, mode='r') as infile:
 			reader = csv.reader(infile)
 			file_number_lookup = dict((rows[0],rows[1]) for rows in reader)
-		#print(file_number_lookup)
 		infile.close()
 	else:
 		file_number_lookup={}
@@ -155,7 +155,6 @@ def main():
 	#now that we have lookups, we start with the files themselves
 
 	for filename in filelist:
-		#print(filename)
 		#set the outputtarget
 		if mode == "file":
 			if output_file is not None:
@@ -169,14 +168,14 @@ def main():
 		#if it's part of a directory run
 
 		#test the input file
-                try:
-                        with open(filename): pass
-                except IOError:
-                        try:
-                                with open(filename): pass
-                        except IOError:
+		try:
+			with open(filename): pass
+		except IOError:
+			try:
+				with open(filename): pass
+			except IOError:
 				print("Error")
-                                continue
+				continue
 
 		#open the output file
 		#disable unique constraint checking
@@ -196,8 +195,7 @@ def main():
 			file_number = -1
 	
 		print ("Parsing file: %s") % (filename)
-	        print ("Start time: %s") % (datetime.datetime.now())
-		#print(root_tag)
+		print ("Start time: %s") % (datetime.datetime.now())
 		events=("start", "end")
 		path_note = []	
 		#the root of what we're processing may not be the root of the file itself
@@ -211,7 +209,6 @@ def main():
 			#we need to split this into a list of tags by "/".
 			root_path = root_tag.split("/")
 			root_path = [namespace + s for s in root_path]
-			#print(root_path)	
 			process = False
 		
 		#The recover ability may or may not be available based on the version of lxml installed. Try to use it, but if not, go without
@@ -219,15 +216,8 @@ def main():
 			parser= etree.iterparse(filename, remove_comments=True, recover=True, events=events)
 		except:
 			parser= etree.iterparse(filename, remove_comments=True, events=events)
-		#	print("Recover not available")
-		#else:
-		#	print("Recover available")
 
 		for event, elem in parser:
-			#print(event)
-			#print(elem)
-			#print(root_path)
-			#print(process)
 			#Here we keep an eye on our path.
 			#If we have a root path defined, then we build a path as we go
 			#If we are opening a tag that matches the root path, then we set processing to true
@@ -242,18 +232,15 @@ def main():
 					if path_note == root_path:
 						process = True		
 				elif event == "end":
-					#print(path_note)
-					#print(root_path)
 					#if the path equals the root path, then we are leaving an area of itnerest, set processing to false
 					if path_note == root_path:
 						process = False
-					#print(process)
 					#remove the last element from the current path
-                        	        path_note.pop()
+					path_note.pop()
+
 			#iteratively parse through the XML, focusing on the tag that starts a record
 			#pass over things outside the processing area. Only process end tags.
 			if event=="end" and  process == True:
-				#print("Hi")
 				if elem.tag == "%s%s" % (namespace, rec_tag):
 					
 					#you've got a record, now parse it
@@ -287,8 +274,6 @@ def main():
 					else:				
 						id_value = "'" + elem.text + "'"
 	
-					#id_value = "'" + id_node.text + "'"
-					#print(id_value)
 					#set the primary key
 					tableList.AddIdentifier(core_table_name, 'id', id_value)
 	
@@ -296,23 +281,29 @@ def main():
 					if file_number_path in file_number_dict:
 						file_number_name = file_number_dict[file_number_path]
 						tableList.AddCol(file_number_name.split(":",1)[0],file_number_name.split(":",1)[1], file_number)
-						
+					
+					attribSeen = set()
 					#process the attributes
-					for attribName, attribVal in elem.attrib.items():
-				                attribpath = path+ "/"+attribName
-				                if attribpath in attrib_dict:
-		                	        	tableList.AddCol(attrib_dict[attribpath].split(":",1)[0],attrib_dict[attribpath].split(":",1)[1], str(attribVal))
+					for attribName, attribValue in elem.attrib.items():
+						attribpath = path+ "/"+attribName
+						if attribpath in attrib_dict:
+							tableName, colName = attrib_dict[attribpath].split(":")[:2] 
+							tableList.AddCol(tableName, colName, str(attribValue))
+							attribSeen.add(attribName)
+					
+					#process default attribute values
+					for attribName, attribValueAll in attrib_defaults.get(path, {}).items():
+						if attribName not in attribSeen:
+							tableName, colName, attribValue = attribValueAll.split(":")[:3]
+							tableList.AddCol(tableName, colName, str(attribValue))
 	
-						#print(attribName)
-						#print(attribVal)
 					#process the value
-        				if valuepath in value_dict:
-				                if node.text is not None:
-        	                			tableList.AddCol(value_dict[valuepath].split(":",1)[0],value_dict[valuepath].split(":",1)[1], str(node.text))
+					if valuepath in value_dict:
+						if node.text is not None:
+							tableList.AddCol(value_dict[valuepath].split(":",1)[0],value_dict[valuepath].split(":",1)[1], str(node.text))
 	
 					#process the children
 					for child in elem:
-						#print(child.tag)
 						ParseNode(child, path, tableList, core_table_name, statementList)
 	
 					#close the primary table
@@ -321,8 +312,8 @@ def main():
 					#write out the statements in reverse order to ensure key compliance
 	
 					data = ""
-				        for statement in reversed(statementList):
-				                data = data + (str(statement) + "\n")
+					for statement in reversed(statementList):
+							data = data + (str(statement) + "\n")
 
 					#set the values that might be used in the template
 	
@@ -344,7 +335,6 @@ def main():
 			if elem.getparent() is None and event == "end":
 				break
 				#some versions of lxml run off the end of the file. This forces the for loop to break at the root.
-		#print("Hi2")
 
 		#reenable unique constraint checking and close the output file
 		if db_mode == "mysql":
@@ -361,7 +351,6 @@ def ParseNode(node, path, tableList, last_opened, statementList):
 	#given a node in a tree known not to be the record tag, prase it and its children
 
 	#first, update the path from parent, for use in lookups
-	#print("Entering ParseNode")
 	if node.tag.find("}") >-1:
 		tag = node.tag.split("}",1)[1]
 	else:
@@ -387,10 +376,20 @@ def ParseNode(node, path, tableList, last_opened, statementList):
 		tableList.AddCol(file_number_name.split(":",1)[0],file_number_name.split(":",1)[1], file_number)
 
 	#process attributes
+	attribSeen = set()
 	for attribName, attribValue in node.attrib.items():
 		attribpath = newpath+ "/"+attribName
 		if attribpath in attrib_dict:
-			 tableList.AddCol(attrib_dict[attribpath].split(":",1)[0],attrib_dict[attribpath].split(":",1)[1], str(attribValue))
+			tableName, colName = attrib_dict[attribpath].split(":")[:2] 
+			tableList.AddCol(tableName, colName, str(attribValue))
+			attribSeen.add(attribName)
+	
+	#process default attribute values
+	for attribName, attribValueAll in attrib_defaults.get(newpath, {}).items():
+		if attribName not in attribSeen:
+			tableName, colName, attribValue = attribValueAll.split(":")[:3]
+			tableList.AddCol(tableName, colName, str(attribValue))
+
 	#process value
 	if valuepath in value_dict:
 		if node.text is not None:
@@ -403,10 +402,8 @@ def ParseNode(node, path, tableList, last_opened, statementList):
 	#if we created a new table for this tag, now it's time to close it.	
 	if new_table == True:
 		tableList.CloseTable(table_name, statementList)
-	#print("Exiting Parse Node")
-	
-	
-		
+
+
 def ReadConfig(node, path, namespace):
 
 	#This recursive function will go through the config file, reading each tag and attribute and create the needed lookup tables
@@ -421,7 +418,9 @@ def ReadConfig(node, path, namespace):
 
 	#go through the attributes in the config file
 	#specialized ones like table and ctr_id go into their own lookups, the rest go into the attribute lookup
-	for attribName, attribValue in node.attrib.items():
+	for attribName, attribValueAll in node.attrib.items():
+		attribValue = ':'.join(attribValueAll.split(':')[:2])
+
 		attrib_path = newpath + attribName
 		if attribName == "table":
 			table_dict["%s%s" % (namespace, attrib_path)]= attribValue
@@ -432,9 +431,15 @@ def ReadConfig(node, path, namespace):
 		else:
 			attrib_dict["%s%s" % (namespace, attrib_path)] = attribValue
 
+			# Providing a third tuple item specifies the default value for that attribute
+			# If the attribute isn't found in the data, use the default value instead.
+			if len(attribValueAll.split(':')) == 3:
+				defaults = attrib_defaults.setdefault(newpath.strip('/'), {})
+				defaults[attribName] = attribValueAll
+
 	#Now recurse for the children of the node
-        for child in node:
-                ReadConfig(child, newpath, namespace)
+	for child in node:
+		ReadConfig(child, newpath, namespace)
 
 
 class TableList:
@@ -556,29 +561,25 @@ class Column:
 
 #set up strings for DB insertion, copied from the old parser, may vary by DB software?
 def db_string(s):
-        if s is not None:
-                return str(s).replace("'","''").replace('\\', '\\\\')
-        else:
-                return "NULL"
+	if s is not None:
+		return str(s).replace("'","''").replace('\\', '\\\\')
+	else:
+		return "NULL"
 
 def getXmlFiles(directory, recurse):
 	filelist=[]
 	if recurse:
-		#print('Hi')
-	        for root, subFolders, files in os.walk(directory):
+		for root, _, files in os.walk(directory):
 			for file in files:
 				if file.endswith('.xml'):
 					filelist.append(os.path.join(root, file))
-			#if filename.endswith('.xml'):
-	        	#        filelist.append(os.path.join(directory, filename))
 	else:
-               for filename in sorted(os.listdir(directory)):
-                        if filename.endswith('.xml'):
-                                filelist.append(os.path.join(directory, filename))
+		for filename in sorted(os.listdir(directory)):
+			if filename.endswith('.xml'):
+				filelist.append(os.path.join(directory, filename))
 	filelist.sort()
 
 	return filelist
 
 if __name__ == "__main__":
-        sys.exit(main())
-
+	sys.exit(main())

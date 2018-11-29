@@ -1,0 +1,15 @@
+<People>
+ <Person name="Joe">
+  <Emp_Id>12435</Emp_Id>
+  <State>Indiana</State>
+  <Color>Red</Color>
+  <Car color="Blue">Ford</Car>
+  <Car color="White">Nissan</Car>
+ </Person>
+ <Person name="Amy">
+  <Emp_Id>12436</Emp_Id>
+ </Person>
+ <Person>
+  <Emp_Id>12437</Emp_Id>
+ </Person>
+</People>

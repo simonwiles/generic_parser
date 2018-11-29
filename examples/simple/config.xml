@@ -1,0 +1,8 @@
+<People>
+ <Person table="employee_list" file_number="employee_list:file_number" name="employee_list:name:undefined">
+  <Emp_Id></Emp_Id>
+  <State>employee_list:state</State>
+  <Color>employee_list:color</Color>
+  <Car table="emp_cars" ctr_id="emp_cars:car_ctr" color="emp_cars:color">emp_cars:car</Car>
+ </Person>
+</People>
