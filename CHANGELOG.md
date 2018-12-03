@@ -8,7 +8,7 @@ Changelog for the generic_parser project.
 
 - Initial version
 
-## 1.1.0 - 2018-11-29
+## 1.1.0 - 2018-12-03
 
 ### Added in 1.1.0
 

@@ -1,16 +1,18 @@
 # GENERIC XML PARSER
 
-Robert Light &amp; Daniel Halsey
-
-Cyberinfrastructure for Network Science Center at Indiana University
-
-## INTRODUCTION
-
 The generic XML parser is designed to process XML records into SQL script that can then be uploaded into a relational database. The parser converts XML into a series of insert statements based on a configuration file that specifies the tables and columns that are desired by the user.
+
+Created at the [Cyberinfrastructure for Network Science Center at Indiana University](https://cns.iu.edu)
+
+**Contributors:**
+
+- [Robert Light](https://github.com/lightr)
+- [Daniel Halsey](https://github.com/dakmh)
+- [Bruce Herr](https://github.com/bherr2)
 
 ## CHANGELOG
 
-See [CHANGELOG](CHANGELOG)
+See [CHANGELOG](CHANGELOG.md)
 
 ## Example Project
 
