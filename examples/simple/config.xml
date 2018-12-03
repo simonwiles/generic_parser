@@ -1,5 +1,5 @@
 <People>
- <Person table="employee_list" file_number="employee_list:file_number" name="employee_list:name:undefined">
+ <Person table="employee_list" file_number="employee_list:file_number" name="employee_list:name:undefined" static_type="employee_list:type:employee">
   <Emp_Id></Emp_Id>
   <State>employee_list:state</State>
   <Color>employee_list:color</Color>
