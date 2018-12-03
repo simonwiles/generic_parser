@@ -8,7 +8,7 @@ Created at the [Cyberinfrastructure for Network Science Center at Indiana Univer
 
 - [Robert Light](https://github.com/lightr)
 - [Daniel Halsey](https://github.com/dakmh)
-- [Bruce Herr](https://github.com/bherr2)
+- [Bruce Herr](https://github.com/bherr2) (maintainer)
 
 ## CHANGELOG
 
