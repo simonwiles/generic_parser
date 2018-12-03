@@ -434,7 +434,7 @@ def ReadConfig(node, path, namespace):
 			# Providing a third tuple item specifies the default value for that attribute
 			# If the attribute isn't found in the data, use the default value instead.
 			if len(attribValueAll.split(':')) == 3:
-				defaults = attrib_defaults.setdefault(newpath.strip('/'), {})
+				defaults = attrib_defaults.setdefault(("%s%s" % (namespace, newpath)).strip('/'), {})
 				defaults[attribName] = attribValueAll
 
 	#Now recurse for the children of the node
