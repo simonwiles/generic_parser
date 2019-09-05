@@ -95,18 +95,21 @@ class Parser:
         # get file number
         file_number = self.file_number_lookup.get(filepath.name, -1)
 
-        events = ('start', 'end')
-        path_note = []
-
         # the root of what we're processing may not be the root of the file
         #  itself
         # we need to know what portion of the file to process
         # we assume that there is only one of these, but it need not
         #  necessarily be true, I think.
 
+        parser_args = {
+            'remove_comments': True,
+            'events': ('start', 'end')
+        }
+
         if self.root_tag is None:
             # if there is no root tag, then we've only got one record and we process everything
             process = True
+            parser_args['tag'] = f'{self.namespace}{self.rec_tag}'
         else:
             # we need to split this into a list of tags by "/".
             root_path = [f'{self.namespace}{s}' for s in self.root_tag.split("/")]
@@ -116,11 +119,11 @@ class Parser:
         #  of lxml installed. Try to use it, but if not, go without
         try:
             parser = etree.iterparse(
-                str(filepath.absolute()), remove_comments=True, recover=True, events=events)
+                str(filepath.absolute()), recover=True, **parser_args)
         except:
-            parser = etree.iterparse(
-                str(filepath.absolute()), remove_comments=True, events=events)
+            parser = etree.iterparse(tr(filepath.absolute()), **parser_args)
 
+        path_note = []
         for event, elem in parser:
             # Here we keep an eye on our path.
             # If we have a root path defined, then we build a path as we go
@@ -156,15 +159,7 @@ class Parser:
                     table_list = TableList(self)
                     statement_list = []
 
-                    # lookups are by full path, so we need to maintain
-                    #  knowledge of that path
-                    # by definition, we must by on the root path, then the
-                    #  record tag
-
-                    if self.root_tag is not None:
-                        path = f'{self.namespace}{self.root_tag}/{self.rec_tag}'
-                    else:
-                        path = f'{self.namespace}{self.rec_tag}'
+                    path = f'{self.namespace}{self.rec_tag}'
 
                     table_path = f'{path}/table'
                     file_number_path = f'{path}/file_number'
@@ -572,7 +567,7 @@ def main():
     # -p optional, marks the container tag for a collection of records, would
     #    not be used for single record files
     parser.add_argument(
-        '-p', '--parent', action='store', required=True,
+        '-p', '--parent', action='store',
         help='Name of the parent tag (tag containing the group of records')
 
     # -r REQUIRED, the tag that defines an individual record
