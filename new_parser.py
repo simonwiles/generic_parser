@@ -9,11 +9,11 @@
 '''
 
 import argparse
-import collections
 import csv
 import datetime
 import logging
 import os
+from collections import defaultdict
 from pathlib import Path
 from string import Template
 
@@ -29,7 +29,7 @@ class Parser:
         self.value_dict = {}
         self.ctr_dict = {}
         self.attrib_dict = {}
-        self.attrib_defaults = collections.defaultdict(dict)
+        self.attrib_defaults = defaultdict(dict)
         self.file_number_dict = {}
 
         self.xml_files = Path(args.xml_source)
@@ -452,7 +452,7 @@ class Table:
         self.name = name
         self.columns = []
         self.identifiers = []
-        self.counters = []
+        self.counters = defaultdict(int)
         self.parent_name = parent_name
         self.parser = parser
 
@@ -465,8 +465,8 @@ class Table:
                     parent = table
                     for identifier in parent.get_identifiers():
                         self.add_identifier(identifier.name, identifier.value)
-                    new_id = parent.get_counter(table_path)
-                    self.add_identifier(new_id.name, new_id.value)
+                    new_id, new_id_ct = parent.get_counter(table_path)
+                    self.add_identifier(new_id, new_id_ct)
 
     def db_string(self, s):
         if s is None:
@@ -487,14 +487,9 @@ class Table:
         # The parent Table will look for the name in the list of Counters
         #  if found, add 1 and report the [name, number]
         #  else, create a new Counter in the list and report [name, 1]
-        ctr_id = self.parser.ctr_dict[f'{name}/ctr_id'].split(":", 1)[1]
-        for counter in self.counters:
-            if counter.name == ctr_id:
-                counter.value = counter.value + 1
-                return(counter)
-        newcounter = Column(ctr_id, 1)
-        self.counters.append(newcounter)
-        return newcounter
+        _table, ctr_id = self.parser.ctr_dict[f'{name}/ctr_id'].split(":", 1)
+        self.counters[ctr_id] += 1
+        return ctr_id, self.counters[ctr_id]
 
     def get_identifiers(self):
         # This returns the set of identifiers for the table, used when a child
