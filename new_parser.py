@@ -450,8 +450,8 @@ class Table:
         # I could rewrite the later half as a function going through the TableList and it may be more correct, but this works well enough
 
         self.name = name
-        self.columns = []
-        self.identifiers = []
+        self.columns = {}
+        self.identifiers = {}
         self.counters = defaultdict(int)
         self.parent_name = parent_name
         self.parser = parser
@@ -463,8 +463,8 @@ class Table:
             for table in table_list.tlist:
                 if table.name == parent_name:
                     parent = table
-                    for identifier in parent.get_identifiers():
-                        self.add_identifier(identifier.name, identifier.value)
+                    for identifier_name, identifier_value in parent.get_identifiers().items():
+                        self.add_identifier(identifier_name, identifier_value)
                     new_id, new_id_ct = parent.get_counter(table_path)
                     self.add_identifier(new_id, new_id_ct)
 
@@ -475,11 +475,11 @@ class Table:
 
     def add_col(self, col_name, col_value):
         # Simply adds a (col_name, col_value) pair to the list to be output, called via TableList.add_col
-        self.columns.append(Column(col_name, col_value))
+        self.columns[col_name] = col_value
 
     def add_identifier(self, col_name, col_value):
         # Adds a new column, value to the identifier list. Should only happen at the start of a record
-        self.identifiers.append(Column(col_name, col_value))
+        self.identifiers[col_name] = col_value
 
     def get_counter(self, name):
         # This accepts a counter name and returns the next value for that counter
@@ -503,28 +503,20 @@ class Table:
         # The statement string is returned. This is then pushed onto a stack.
         col_list = ''
         val_list = ''
-        for col in self.identifiers:
+        for col_name, col_value in self.identifiers.items():
             if col_list != '':
                 col_list = col_list + ','
                 val_list = val_list + ','
-            col_list = col_list + self.table_quote + col.name + self.table_quote
-            val_list = val_list + str(col.value)
-        for col in self.columns:
+            col_list = col_list + self.table_quote + col_name + self.table_quote
+            val_list = val_list + str(col_value)
+        for col_name, col_value in self.columns.items():
             if col_list != "":
                 col_list = col_list + ','
                 val_list = val_list + ','
-            col_list = col_list + self.table_quote + col.name + self.table_quote
-            val_list = val_list + self.value_quote + self.db_string(col.value) + self.value_quote
+            col_list = col_list + self.table_quote + col_name + self.table_quote
+            val_list = val_list + self.value_quote + self.db_string(col_value) + self.value_quote
         statement = 'INSERT INTO %s%s%s (%s) VALUES (%s);' % (self.table_quote, self.name, self.table_quote, col_list, val_list)
         return statement
-
-
-class Column:
-    # A simple storage for a column in a table entry. Name and value.
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-
 
 def main():
     ''' Command-line entry-point. '''
