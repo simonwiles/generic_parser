@@ -31,6 +31,8 @@ class Parser:
         self.attrib_defaults = defaultdict(dict)
         self.file_number_dict = {}
 
+        self.tables = {}
+
         self.xml_files = Path(args.xml_source)
 
         if self.xml_files.is_file():
@@ -147,8 +149,6 @@ class Parser:
                 if elem.tag == self.rec_tag:
 
                     # you've got a record, now parse it
-
-                    table_list = TableList(self)
                     statement_list = []
                     path = self.rec_tag
 
@@ -157,10 +157,10 @@ class Parser:
                     valuepath = f'{path}/'
 
                     # get the core table name from the lookup
-                    core_table_name = self.table_dict[table_path]
+                    main_table_name = self.table_dict[table_path]
 
-                    # create the core table
-                    table_list.add_table(core_table_name, None, path)
+                    # open a record on the core table
+                    main_record = self.get_record(main_table_name)
 
                     # get the primary key
                     # the head tag may be the identifier, if so, just grab it,
@@ -174,15 +174,14 @@ class Parser:
                         id_value = f"'{elem.text}'"
 
                     # set the primary key
-                    table_list.add_identifier(core_table_name, 'id', id_value)
+                    main_record.add_identifier('id', id_value)
 
                     # see if this table needs a file number
                     file_number_name = \
                         self.file_number_dict.get(file_number_path, False)
                     if file_number_name:
-                        table_list.add_col(
-                            file_number_name.split(":", 1)[0],
-                            file_number_name.split(":", 1)[1], file_number)
+                        table_name, col_name = file_number_name.split(":", 1)
+                        self.get_record(table_name).add_col(col_name, file_number)
 
                     attrib_seen = set()
 
@@ -192,15 +191,14 @@ class Parser:
                         if attribpath in self.attrib_dict:
                             table_name, col_name = \
                                 self.attrib_dict[attribpath].split(":")[:2]
-                            table_list.add_col(
-                                table_name, col_name, str(attrib_value))
+                            self.get_record(table_name).add_col(col_name, str(attrib_value))
                             attrib_seen.add(attrib_name)
 
                     # process default attribute values
                     for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
                         if attrib_name not in attrib_seen:
                             table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
-                            table_list.add_col(table_name, col_name, str(attrib_value))
+                            self.get_record(table_name).add_col(col_name, str(attrib_value))
 
                     # SIMON: where is node supposed to come from??
                     #        the branch seems never to be executed?
@@ -215,10 +213,10 @@ class Parser:
 
                     # process the children
                     for child in elem:
-                        self.parse_node(child, path, table_list, core_table_name, statement_list)
+                        self.parse_node(child, path, main_record, statement_list)
 
                     # close the primary table
-                    table_list.close_table(core_table_name, statement_list)
+                    statement_list.append(main_record.close_record())
 
                     # write out the statements in reverse order to ensure key compliance
 
@@ -247,9 +245,10 @@ class Parser:
         # if single_trans:
         output.write("COMMIT;\n")
         output.close()
-        print("End time: %s" % datetime.datetime.now())
+        logging.info("End time: %s" % datetime.datetime.now())
 
-    def parse_node(self, node, path, table_list, last_opened, statement_list):
+
+    def parse_node(self, node, parent_path, parent_record, statement_list):
         # recursive node parser
         # given a node in a tree known not to be the record tag, parse it and
         #  its children
@@ -260,7 +259,7 @@ class Parser:
         else:
             tag = node.tag
 
-        newpath = f'{path}/{tag}'
+        newpath = f'{parent_path}/{tag}'
 
         # see if we need a new table, make sure children inherit the right parent
         table_path = f'{newpath}/'
@@ -268,23 +267,22 @@ class Parser:
 
         # See if this tag requires a new table
         if table_path in self.table_dict:
-            new_table = True
+            creating_record = True
             table_name = self.table_dict[table_path]
-            table_list.add_table(table_name, last_opened, newpath)
+            record = self.get_record(table_name, newpath, parent_record)
         else:
-            new_table = False
-            table_name = last_opened
+            creating_record = False
+            record = parent_record
 
         # SIMON: file_number is not available here?
         #        another branch that is never used?
         # See if this tag calls for a file number
-        if newpath in self.file_number_dict:
-            file_number_name = self.file_number_dict[newpath]
-            table_list.add_col(
-                file_number_name.split(":", 1)[0],
-                file_number_name.split(":", 1)[1],
-                file_number
-            )
+        file_number_name = \
+            self.file_number_dict.get(newpath, False)
+        if file_number_name:
+            table_name, col_name = file_number_name.split(":", 1)
+            self.get_record(table_name, newpath, record).add_col(col_name, file_number)
+
 
         # process attributes
         attrib_seen = set()
@@ -293,33 +291,32 @@ class Parser:
             if attribpath in self.attrib_dict:
                 table_name, col_name = \
                     self.attrib_dict[attribpath].split(":")[:2]
-                table_list.add_col(table_name, col_name, str(attrib_value))
+                self.get_record(table_name, newpath, record).add_col(col_name, str(attrib_value))
                 attrib_seen.add(attrib_name)
+
 
         # process default attribute values
         for attrib_name, attrib_value_all in self.attrib_defaults.get(newpath, {}).items():
             if attrib_name not in attrib_seen:
-                table_name, col_name, attrib_value = \
-                    attrib_value_all.split(":")[:3]
-                table_list.add_col(table_name, col_name, str(attrib_value))
+                table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
+                self.get_record(table_name, newpath, record).add_col(col_name, str(attrib_value))
+
 
         # process value
         if valuepath in self.value_dict:
             if node.text is not None:
-                table_list.add_col(
-                    self.value_dict[valuepath].split(":", 1)[0],
-                    self.value_dict[valuepath].split(":", 1)[1],
-                    str(node.text)
-                )
+                table_name, col_name = self.value_dict[valuepath].split(":", 1)
+                self.get_record(table_name, newpath, record).add_col(col_name, str(node.text))
 
         # process children
         for child in node:
             self.parse_node(
-                child, newpath, table_list, table_name, statement_list)
+                child, newpath, record, statement_list)
 
         # if we created a new table for this tag, now it's time to close it.
-        if new_table is True:
-            table_list.close_table(table_name, statement_list)
+        if creating_record is True:
+            statement_list.append(record.close_record())
+
 
     def read_config(self, config_file):
 
@@ -359,8 +356,7 @@ class Parser:
                     #  value instead.
                     if len(attrib_value_all.split(':')) == 3:
                         self.attrib_defaults[
-                            f'{self.namespace}{newpath}'.strip('/')][attrib_name]\
-                             = attrib_value_all
+                            f'{self.namespace}{newpath}'.strip('/')][attrib_name] = attrib_value_all
 
             # Now recurse for the children of the node
             for child in node:
@@ -369,49 +365,23 @@ class Parser:
         update_lookup_tables(etree.parse(open(config_file)).getroot())
 
 
-class TableList:
-    """
-    The TableList is the memory structure that stores the data as we read it
-     out of XML
-    This is the only way that we handle the Tables that we're creating during
-     the main process.
-    We can never have more than one instance of a table with the same name
-    When a tag that needs a table opens, we call add_table.
-    add_identifier should only be needed for the master table. Identifiers are
-     added automatically after that.
-    add_col is used for each value that we detect
-    When a tag that created a table closes, we call close_table for that table.
-     This kicks the insert statement out to the stack and frees up that table
-     name if needed again.
-    """
+    def get_record(self, table_name, table_path=None, parent_table=None):
+        table = self.get_or_create_table(table_name, table_path, parent_table)
+        if table.record_open:
+            return table
+        table.new_record()
+        return table
 
-    def __init__(self, parser):
-        self.parser = parser
-        self.tlist = []
+    def get_or_create_table(self, table_name, table_path=None, parent_table=None):
+        if table_name in self.tables:
+            return self.tables[table_name]
 
-    def add_table(self, table_name, parent_name, table_path):
-        t = Table(table_name, parent_name, self, table_path, self.parser)
-        self.tlist.append(t)
-
-    def add_col(self, table_name, col_name, col_value):
-        for t in self.tlist:
-            if t.name == table_name:
-                t.add_col(col_name, col_value)
-                return
-
-    def add_identifier(self, table_name, col_name, col_value):
-        for t in self.tlist:
-            if t.name == table_name:
-                t.add_identifier(col_name, col_value)
-                return
-
-    def close_table(self, table_name, statement_list):
-        for t in self.tlist:
-            if t.name == table_name:
-                statement_list.append(t.create_insert())
-                self.tlist.remove(t)
-                del t
-                return
+        ctr_id = None
+        if table_path is not None:
+            _table, ctr_id = self.ctr_dict[f'{table_path}/'].split(":", 1)
+        table = Table(table_name, ctr_id, parent_table)
+        self.tables[table_name] = table
+        return table
 
 
 class Table:
@@ -426,7 +396,7 @@ class Table:
     """
 
     # SIMON: this is the place to subclass PostgresTable, MySQLTable...
-    def __init__(self, name, parent_name, table_list, table_path, parser):
+    def __init__(self, name, ctr_id=None, parent_table=None):
         # initialization gets the parent
         # If there is a parent, the table first inherits the parent's identifiers
         # It then asks the parent for the next value in it's own identifier and adds
@@ -435,23 +405,17 @@ class Table:
         #  it may be more correct, but this works well enough
 
         self.name = name
+        self.ctr_id = ctr_id
+        self.parent_table = parent_table
+
         self.columns = OrderedDict()
         self.identifiers = OrderedDict()
         self.counters = defaultdict(int)
-        self.parent_name = parent_name
-        self.parser = parser
 
         self.table_quote = '"'
         self.value_quote = '\''
 
-        if parent_name is not None:
-            for table in table_list.tlist:
-                if table.name == parent_name:
-                    parent = table
-                    for identifier_name, identifier_value in parent.identifiers.items():
-                        self.add_identifier(identifier_name, identifier_value)
-                    new_id, new_id_ct = parent.get_counter(table_path)
-                    self.add_identifier(new_id, new_id_ct)
+        self.record_open = False
 
     def db_string(self, s):
         if s is None:
@@ -466,13 +430,29 @@ class Table:
         # Adds a new column, value to the identifier list. Should only happen at the start of a record
         self.identifiers[col_name] = col_value
 
-    def get_counter(self, name):
+    def new_record(self):
+        # counters are unique per parent_id, so reset them here
+        self.counters = defaultdict(int)
+
+        if self.parent_table is not None:
+
+            # copy identifiers from parent
+            for identifier_name, identifier_value in self.parent_table.identifiers.items():
+                self.add_identifier(identifier_name, identifier_value)
+
+            # if this table needs a counter, add the next one off the rank
+            if self.ctr_id is not None:
+                new_id, new_id_ct = self.parent_table.get_counter(self.ctr_id)
+                self.add_identifier(new_id, new_id_ct)
+
+        self.record_open = True
+
+    def get_counter(self, ctr_id):
         # This accepts a counter name and returns the next value for that counter
         # This would be invoked by a Table's children (see in __init__).
         # The parent Table will look for the name in the list of Counters
         #  if found, add 1 and report the [name, number]
         #  else, create a new Counter in the list and report [name, 1]
-        _table, ctr_id = self.parser.ctr_dict[f'{name}/'].split(":", 1)
         self.counters[ctr_id] += 1
         return ctr_id, self.counters[ctr_id]
 
@@ -492,6 +472,13 @@ class Table:
         return (
             f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} '
             f'({col_list}) VALUES ({val_list});')
+
+    def close_record(self):
+        insert = self.create_insert()
+        self.columns = OrderedDict()
+        self.identifiers = OrderedDict()
+        self.record_open = False
+        return insert
 
 
 def main():
