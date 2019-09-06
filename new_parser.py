@@ -15,7 +15,6 @@ import logging
 import os
 from collections import defaultdict, OrderedDict
 from pathlib import Path
-from string import Template
 
 from lxml import etree
 
@@ -64,13 +63,6 @@ class Parser:
         # write lookup tables for table creation, counters, value and
         #  attribute parsing
         self.read_config(args.config_file)
-
-        if args.template_file is not None:
-            # get the template from the file
-            with open(args.template_file, 'r') as _fh:
-                self.template = Template(_fh.read())
-        else:
-            self.template = None
 
 
     def parse(self):
@@ -235,18 +227,7 @@ class Parser:
                     for statement in reversed(statement_list):
                         data = data + (str(statement) + "\n")
 
-                    if self.template is not None:
-                        # set the values that might be used in the template
-
-                        template_dict = {}
-                        template_dict['data'] = data
-                        template_dict['file_number'] = file_number
-                        template_dict['id'] = id_value
-
-                        # write the data into the template and write to file
-                        output.write(self.template.substitute(template_dict))
-                    else:
-                        output.write(data)
+                    output.write(data)
 
                     # clear memory
 
@@ -537,10 +518,6 @@ def main():
         '-c', '--config-file', action='store', required=True,
         help='configuration file')
 
-    # -t optional, defined the SQL template to write into
-    parser.add_argument(
-        '-t', '--template-file', action='store', help='template file')
-
     # -o REQUIRED, can be either a directory, or if a single-file run, a file
     #    name.
     parser.add_argument(
@@ -585,8 +562,7 @@ def main():
     #     speed if DB has an autocommit that you can't disable.
     parser.add_argument(
         '-s', '--single-trans', action='store_true',
-        help='If true, will enable one transaction per file, cannot have '
-             'transaction statements in the template, if so')
+        help='If true, will enable one transaction per file')
 
     # -z, gives the option to recurse through a directory as opposed to just
     #     reading the core output.
