@@ -97,6 +97,7 @@ class Parser:
 
         parser_args = {
             'remove_comments': True,
+            'recover': True,
             'events': ('start', 'end')
         }
 
@@ -109,13 +110,7 @@ class Parser:
             root_path = [f'{self.namespace}{s}' for s in self.root_tag.split("/")]
             process = False
 
-        # The recover ability may or may not be available based on the version
-        #  of lxml installed. Try to use it, but if not, go without
-        try:
-            parser = etree.iterparse(
-                str(filepath.absolute()), recover=True, **parser_args)
-        except:
-            parser = etree.iterparse(tr(filepath.absolute()), **parser_args)
+        parser = etree.iterparse(str(filepath.absolute()), **parser_args)
 
         path_note = []
         for event, elem in parser:
