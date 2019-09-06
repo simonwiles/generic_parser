@@ -161,7 +161,7 @@ class Parser:
 
                     path = f'{self.namespace}{self.rec_tag}'
 
-                    table_path = f'{path}/table'
+                    table_path = f'{path}/'
                     file_number_path = f'{path}/file_number'
                     valuepath = f'{path}/'
 
@@ -283,7 +283,7 @@ class Parser:
         newpath = f'{path}/{tag}'
 
         # see if we need a new table, make sure children inherit the right parent
-        table_path = f'{newpath}/table'
+        table_path = f'{newpath}/'
         valuepath = f'{newpath}/'
 
         # See if this tag requires a new table
@@ -365,7 +365,7 @@ class Parser:
 
                 attrib_path = f'{self.namespace}{newpath}{attrib_name}'
                 if attrib_name == "table":
-                    self.table_dict[attrib_path] = attrib_value
+                    self.table_dict[f'{self.namespace}{newpath}'] = attrib_value
                 elif attrib_name == "ctr_id":
                     self.ctr_dict[attrib_path] = attrib_value
                 elif attrib_name == "file_number":
