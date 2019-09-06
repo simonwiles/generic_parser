@@ -32,6 +32,7 @@ class Parser:
         self.file_number_dict = {}
 
         self.tables = {}
+        self.current_output_path = None
 
         self.xml_files = Path(args.xml_source)
 
@@ -74,17 +75,20 @@ class Parser:
         for filepath in self.xml_files:
             self.parse_file(filepath)
 
+        for table in self.tables.values():
+            table.close_table()
+
 
     def parse_file(self, filepath):
 
-        logging.info(f'Parsing file: {filepath}')
-        outputtarget = os.path.join(self.output_dir, filepath.with_suffix('.sql').name)
-        logging.info(f'Writing to {outputtarget}')
 
+        logging.info(f'Parsing file: {filepath}')
+
+        self.current_output_path = Path(self.output_dir) / filepath.stem
+        self.current_output_path.mkdir(parents=True, exist_ok=True)
+        logging.info(f'Writing files to: {self.current_output_path}')
 
         logging.info("Start time: %s" % datetime.datetime.now())
-        output = open(outputtarget, "w")
-        output.write("BEGIN;\n")
 
         # the root of what we're processing may not be the root of the file
         #  itself
@@ -141,7 +145,6 @@ class Parser:
                 if node.tag == self.rec_tag:
 
                     # you've got a record, now parse it
-                    statement_list = []
                     path = self.rec_tag
 
                     # get the core table name from the lookup
@@ -168,27 +171,11 @@ class Parser:
 
                     # process the children
                     for child in node:
-                        self.parse_node(child, path, main_record, statement_list)
+                        self.parse_node(child, path, main_record)
 
-                    # close the primary table
-                    statement_list.append(main_record.close_record())
-
-                    # write out the statements in reverse order to ensure key compliance
-
-                    data = ""
-                    for statement in reversed(statement_list):
-                        data = data + (str(statement) + "\n")
-
-                    output.write(data)
-
-                    # clear memory
-                    output.flush()
+                    main_record.close_record()
                     node.clear()
 
-                    # finished individual record
-
-        output.write("COMMIT;\n")
-        output.close()
         logging.info("End time: %s" % datetime.datetime.now())
 
 
@@ -225,7 +212,7 @@ class Parser:
                 self.get_record(table_name, path, record).add_col(col_name, str(node.text))
 
 
-    def parse_node(self, node, parent_path, parent_record, statement_list):
+    def parse_node(self, node, parent_path, parent_record):
         # recursive node parser
         # given a node in a tree known not to be the record tag, parse it and
         #  its children
@@ -252,12 +239,11 @@ class Parser:
 
         # process children
         for child in node:
-            self.parse_node(
-                child, path, record, statement_list)
+            self.parse_node(child, path, record)
 
         # if we created a new table for this tag, now it's time to close it.
         if creating_record is True:
-            statement_list.append(record.close_record())
+            record.close_record()
 
 
     def read_config(self, config_file):
@@ -325,7 +311,7 @@ class Parser:
         ctr_id = None
         if table_path is not None:
             _table, ctr_id = self.ctr_dict[table_path].split(":", 1)
-        table = Table(table_name, ctr_id, parent_table)
+        table = Table(table_name, self.current_output_path, ctr_id, parent_table)
         self.tables[table_name] = table
         return table
 
@@ -342,7 +328,7 @@ class Table:
     """
 
     # SIMON: this is the place to subclass PostgresTable, MySQLTable...
-    def __init__(self, name, ctr_id=None, parent_table=None):
+    def __init__(self, name, output_path, ctr_id=None, parent_table=None):
         # initialization gets the parent
         # If there is a parent, the table first inherits the parent's identifiers
         # It then asks the parent for the next value in it's own identifier and adds
@@ -362,6 +348,11 @@ class Table:
         self.value_quote = '\''
 
         self.record_open = False
+
+        self._fh = open(output_path.joinpath(f'{name}.sql'), 'w')
+        logging.debug(f'Opened {self._fh.name} for writing...')
+        self._fh.write("BEGIN;\n")
+
 
     def db_string(self, s):
         if s is None:
@@ -420,11 +411,15 @@ class Table:
             f'({col_list}) VALUES ({val_list});')
 
     def close_record(self):
-        insert = self.create_insert()
+        self._fh.write(self.create_insert() + '\n')
         self.columns = OrderedDict()
         self.identifiers = OrderedDict()
         self.record_open = False
-        return insert
+
+    def close_table(self):
+        assert not self.columns and not self.identifiers
+        self._fh.write('COMMIT;\n')
+        self._fh.close()
 
 
 def main():
