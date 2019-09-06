@@ -147,12 +147,8 @@ class Parser:
                     statement_list = []
                     path = self.rec_tag
 
-                    table_path = f'{path}/'
-                    file_number_path = f'{path}/file_number'
-                    valuepath = f'{path}/'
-
                     # get the core table name from the lookup
-                    main_table_name = self.table_dict[table_path]
+                    main_table_name = self.table_dict[path]
 
                     # open a record on the core table
                     main_record = self.get_record(main_table_name)
@@ -173,7 +169,7 @@ class Parser:
 
                     # see if this table needs a file number
                     file_number_name = \
-                        self.file_number_dict.get(file_number_path, False)
+                        self.file_number_dict.get(path, False)
                     if file_number_name:
                         table_name, col_name = file_number_name.split(":", 1)
                         self.get_record(table_name).add_col(col_name, file_number)
@@ -198,11 +194,11 @@ class Parser:
                     # SIMON: where is node supposed to come from??
                     #        the branch seems never to be executed?
                     # process the value
-                    if valuepath in self.value_dict:
+                    if path in self.value_dict:
                         if node.text is not None:
                             table_list.add_col(
-                                value_dict[valuepath].split(":", 1)[0],
-                                value_dict[valuepath].split(":", 1)[1],
+                                value_dict[path].split(":", 1)[0],
+                                value_dict[path].split(":", 1)[1],
                                 str(node.text)
                             )
 
@@ -222,9 +218,9 @@ class Parser:
                     output.write(data)
 
                     # clear memory
-
                     output.flush()
                     elem.clear()
+
                     # finished individual record
 
             if elem.getparent() is None and event == "end":
@@ -254,17 +250,14 @@ class Parser:
         else:
             tag = node.tag
 
-        newpath = f'{parent_path}/{tag}'
+        path = f'{parent_path}/{tag}'
 
         # see if we need a new table, make sure children inherit the right parent
-        table_path = f'{newpath}/'
-        valuepath = f'{newpath}/'
-
         # See if this tag requires a new table
-        if table_path in self.table_dict:
+        if path in self.table_dict:
             creating_record = True
-            table_name = self.table_dict[table_path]
-            record = self.get_record(table_name, newpath, parent_record)
+            table_name = self.table_dict[path]
+            record = self.get_record(table_name, path, parent_record)
         else:
             creating_record = False
             record = parent_record
@@ -273,40 +266,40 @@ class Parser:
         #        another branch that is never used?
         # See if this tag calls for a file number
         file_number_name = \
-            self.file_number_dict.get(newpath, False)
+            self.file_number_dict.get(path, False)
         if file_number_name:
             table_name, col_name = file_number_name.split(":", 1)
-            self.get_record(table_name, newpath, record).add_col(col_name, file_number)
+            self.get_record(table_name, path, record).add_col(col_name, file_number)
 
 
         # process attributes
         attrib_seen = set()
         for attrib_name, attrib_value in node.attrib.items():
-            attribpath = f'{newpath}/{attrib_name}'
+            attribpath = f'{path}/{attrib_name}'
             if attribpath in self.attrib_dict:
                 table_name, col_name = \
                     self.attrib_dict[attribpath].split(":")[:2]
-                self.get_record(table_name, newpath, record).add_col(col_name, str(attrib_value))
+                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
                 attrib_seen.add(attrib_name)
 
 
         # process default attribute values
-        for attrib_name, attrib_value_all in self.attrib_defaults.get(newpath, {}).items():
+        for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
             if attrib_name not in attrib_seen:
                 table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
-                self.get_record(table_name, newpath, record).add_col(col_name, str(attrib_value))
+                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
 
 
         # process value
-        if valuepath in self.value_dict:
+        if path in self.value_dict:
             if node.text is not None:
-                table_name, col_name = self.value_dict[valuepath].split(":", 1)
-                self.get_record(table_name, newpath, record).add_col(col_name, str(node.text))
+                table_name, col_name = self.value_dict[path].split(":", 1)
+                self.get_record(table_name, path, record).add_col(col_name, str(node.text))
 
         # process children
         for child in node:
             self.parse_node(
-                child, newpath, record, statement_list)
+                child, path, record, statement_list)
 
         # if we created a new table for this tag, now it's time to close it.
         if creating_record is True:
@@ -315,19 +308,19 @@ class Parser:
 
     def read_config(self, config_file):
 
-        def update_lookup_tables(node, path=''):
+        def update_lookup_tables(node, path):
 
             # This recursive function will go through the config file, reading
             #  each tag and attribute and create the needed lookup tables
             # All tags and attributes are recorded by full path, so name
             #  reusage shouldn't be a problem
 
-            newpath = f'{path}{node.tag}/'
+
 
             # write the value lookup for the tag
             if node.text is not None:
                 if str(node.text).strip() != '':
-                    self.value_dict[f'{self.namespace}{newpath}'] = node.text
+                    self.value_dict[path] = node.text
 
             # go through the attributes in the config file
             # specialized ones like table and ctr_id go into their own lookups,
@@ -335,13 +328,13 @@ class Parser:
             for attrib_name, attrib_value_all in node.attrib.items():
                 attrib_value = ':'.join(attrib_value_all.split(':')[:2])
 
-                attrib_path = f'{self.namespace}{newpath}{attrib_name}'
+                attrib_path = f'{path}/{attrib_name}'
                 if attrib_name == "table":
-                    self.table_dict[f'{self.namespace}{newpath}'] = attrib_value
+                    self.table_dict[path] = attrib_value
                 elif attrib_name == "ctr_id":
-                    self.ctr_dict[f'{self.namespace}{newpath}'] = attrib_value
+                    self.ctr_dict[path] = attrib_value
                 elif attrib_name == "file_number":
-                    self.file_number_dict[attrib_path] = attrib_value
+                    self.file_number_dict[path] = attrib_value
                 else:
                     self.attrib_dict[attrib_path] = attrib_value
 
@@ -351,13 +344,16 @@ class Parser:
                     #  value instead.
                     if len(attrib_value_all.split(':')) == 3:
                         self.attrib_defaults[
-                            f'{self.namespace}{newpath}'.strip('/')][attrib_name] = attrib_value_all
+                            path][attrib_name] = attrib_value_all
 
             # Now recurse for the children of the node
             for child in node:
-                update_lookup_tables(child, newpath)
+                update_lookup_tables(child, f'{path}/{child.tag}')
 
-        update_lookup_tables(etree.parse(open(config_file)).getroot())
+        root = etree.parse(open(config_file)).getroot()
+        root_tag = root.tag
+        path = f'{self.namespace}{root_tag}'
+        update_lookup_tables(root, path)
 
 
     def get_record(self, table_name, table_path=None, parent_table=None):
@@ -367,13 +363,14 @@ class Parser:
         table.new_record()
         return table
 
+
     def get_or_create_table(self, table_name, table_path=None, parent_table=None):
         if table_name in self.tables:
             return self.tables[table_name]
 
         ctr_id = None
         if table_path is not None:
-            _table, ctr_id = self.ctr_dict[f'{table_path}/'].split(":", 1)
+            _table, ctr_id = self.ctr_dict[table_path].split(":", 1)
         table = Table(table_name, ctr_id, parent_table)
         self.tables[table_name] = table
         return table
