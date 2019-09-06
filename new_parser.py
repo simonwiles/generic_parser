@@ -47,8 +47,8 @@ class Parser:
 
         # root tag can be empty, but rec and id need to be present
         self.root_tag = args.parent
-        self.rec_tag = args.record
-        self.id_tag = args.identifier
+        self.rec_tag = f'{self.namespace}{args.record}'
+        self.id_tag = f'{self.namespace}{args.identifier}'
 
         # convert the file number sheet to a dictionary for speedy lookup
         if args.file_number_sheet is not None:
@@ -101,7 +101,7 @@ class Parser:
         if self.root_tag is None:
             # if there is no root tag, then we've only got one record and we process everything
             process = True
-            parser_args['tag'] = f'{self.namespace}{self.rec_tag}'
+            parser_args['tag'] = self.rec_tag
         else:
             # we need to split this into a list of tags by "/".
             root_path = [f'{self.namespace}{s}' for s in self.root_tag.split("/")]
@@ -144,14 +144,13 @@ class Parser:
             # pass over things outside the processing area. Only process end
             #  tags.
             if event == 'end' and process is True:
-                if elem.tag == f'{self.namespace}{self.rec_tag}':
+                if elem.tag == self.rec_tag:
 
                     # you've got a record, now parse it
 
                     table_list = TableList(self)
                     statement_list = []
-
-                    path = f'{self.namespace}{self.rec_tag}'
+                    path = self.rec_tag
 
                     table_path = f'{path}/'
                     file_number_path = f'{path}/file_number'
@@ -168,7 +167,7 @@ class Parser:
                     #  otherwise, seek it out
 
                     if self.id_tag != self.rec_tag:
-                        id_seek = f'{self.namespace}{self.id_tag}'
+                        id_seek = self.id_tag
                         id_node = elem.find(id_seek)
                         id_value = f"'{id_node.text}'"
                     else:
