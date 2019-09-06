@@ -32,6 +32,7 @@ class Parser:
         self.file_number_dict = {}
 
         self.tables = {}
+        self.current_file_number = None
 
         self.xml_files = Path(args.xml_source)
 
@@ -87,7 +88,7 @@ class Parser:
         output.write("BEGIN;\n")
 
         # get file number
-        file_number = self.file_number_lookup.get(filepath.name, -1)
+        self.current_file_number = self.file_number_lookup.get(filepath.name, -1)
 
         # the root of what we're processing may not be the root of the file
         #  itself
@@ -113,7 +114,7 @@ class Parser:
         parser = etree.iterparse(str(filepath.absolute()), **parser_args)
 
         path_note = []
-        for event, elem in parser:
+        for event, node in parser:
             # Here we keep an eye on our path.
             # If we have a root path defined, then we build a path as we go
             # If we are opening a tag that matches the root path, then we set processing to true
@@ -123,7 +124,7 @@ class Parser:
             if self.root_tag is not None:
                 if event == 'start':
                     # add the new element to the current path
-                    path_note.append(elem.tag)
+                    path_note.append(node.tag)
                     # if the path matches the root path, then we have reached
                     #  an area of interest, set processing to true
                     if path_note == root_path:
@@ -141,7 +142,7 @@ class Parser:
             # pass over things outside the processing area. Only process end
             #  tags.
             if event == 'end' and process is True:
-                if elem.tag == self.rec_tag:
+                if node.tag == self.rec_tag:
 
                     # you've got a record, now parse it
                     statement_list = []
@@ -159,51 +160,18 @@ class Parser:
 
                     if self.id_tag != self.rec_tag:
                         id_seek = self.id_tag
-                        id_node = elem.find(id_seek)
+                        id_node = node.find(id_seek)
                         id_value = f"'{id_node.text}'"
                     else:
-                        id_value = f"'{elem.text}'"
+                        id_value = f"'{node.text}'"
 
                     # set the primary key
                     main_record.add_identifier('id', id_value)
 
-                    # see if this table needs a file number
-                    file_number_name = \
-                        self.file_number_dict.get(path, False)
-                    if file_number_name:
-                        table_name, col_name = file_number_name.split(":", 1)
-                        self.get_record(table_name).add_col(col_name, file_number)
-
-                    attrib_seen = set()
-
-                    # process the attributes
-                    for attrib_name, attrib_value in elem.attrib.items():
-                        attribpath = f'{path}/{attrib_name}'
-                        if attribpath in self.attrib_dict:
-                            table_name, col_name = \
-                                self.attrib_dict[attribpath].split(":")[:2]
-                            self.get_record(table_name).add_col(col_name, str(attrib_value))
-                            attrib_seen.add(attrib_name)
-
-                    # process default attribute values
-                    for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
-                        if attrib_name not in attrib_seen:
-                            table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
-                            self.get_record(table_name).add_col(col_name, str(attrib_value))
-
-                    # SIMON: where is node supposed to come from??
-                    #        the branch seems never to be executed?
-                    # process the value
-                    if path in self.value_dict:
-                        if node.text is not None:
-                            table_list.add_col(
-                                value_dict[path].split(":", 1)[0],
-                                value_dict[path].split(":", 1)[1],
-                                str(node.text)
-                            )
+                    self.write_columns(node, path)
 
                     # process the children
-                    for child in elem:
+                    for child in node:
                         self.parse_node(child, path, main_record, statement_list)
 
                     # close the primary table
@@ -219,11 +187,11 @@ class Parser:
 
                     # clear memory
                     output.flush()
-                    elem.clear()
+                    node.clear()
 
                     # finished individual record
 
-            if elem.getparent() is None and event == "end":
+            if node.getparent() is None and event == "end":
                 break
                 # some versions of lxml run off the end of the file. This
                 #  forces the for loop to break at the root.
@@ -237,6 +205,37 @@ class Parser:
         output.write("COMMIT;\n")
         output.close()
         logging.info("End time: %s" % datetime.datetime.now())
+
+
+    def write_columns(self, node, path=None, record=None):
+        file_number_name = \
+            self.file_number_dict.get(path, False)
+        if file_number_name:
+            table_name, col_name = file_number_name.split(":", 1)
+            self.get_record(table_name, path, record).add_col(col_name, self.current_file_number)
+
+        # process attributes
+        attrib_seen = set()
+        for attrib_name, attrib_value in node.attrib.items():
+            attribpath = f'{path}/{attrib_name}'
+            if attribpath in self.attrib_dict:
+                table_name, col_name = \
+                    self.attrib_dict[attribpath].split(":")[:2]
+                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
+                attrib_seen.add(attrib_name)
+
+        # process default attribute values
+        for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
+            if attrib_name not in attrib_seen:
+                table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
+                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
+
+
+        # process value
+        if path in self.value_dict:
+            if node.text is not None:
+                table_name, col_name = self.value_dict[path].split(":", 1)
+                self.get_record(table_name, path, record).add_col(col_name, str(node.text))
 
 
     def parse_node(self, node, parent_path, parent_record, statement_list):
@@ -262,39 +261,7 @@ class Parser:
             creating_record = False
             record = parent_record
 
-        # SIMON: file_number is not available here?
-        #        another branch that is never used?
-        # See if this tag calls for a file number
-        file_number_name = \
-            self.file_number_dict.get(path, False)
-        if file_number_name:
-            table_name, col_name = file_number_name.split(":", 1)
-            self.get_record(table_name, path, record).add_col(col_name, file_number)
-
-
-        # process attributes
-        attrib_seen = set()
-        for attrib_name, attrib_value in node.attrib.items():
-            attribpath = f'{path}/{attrib_name}'
-            if attribpath in self.attrib_dict:
-                table_name, col_name = \
-                    self.attrib_dict[attribpath].split(":")[:2]
-                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
-                attrib_seen.add(attrib_name)
-
-
-        # process default attribute values
-        for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
-            if attrib_name not in attrib_seen:
-                table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
-                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
-
-
-        # process value
-        if path in self.value_dict:
-            if node.text is not None:
-                table_name, col_name = self.value_dict[path].split(":", 1)
-                self.get_record(table_name, path, record).add_col(col_name, str(node.text))
+        self.write_columns(node, path, record)
 
         # process children
         for child in node:
