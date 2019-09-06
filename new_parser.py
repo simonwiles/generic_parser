@@ -13,7 +13,7 @@ import csv
 import datetime
 import logging
 import os
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from pathlib import Path
 from string import Template
 
@@ -417,11 +417,13 @@ class TableList:
         for t in self.tlist:
             if t.name == table_name:
                 t.add_col(col_name, col_value)
+                return
 
     def add_identifier(self, table_name, col_name, col_value):
         for t in self.tlist:
             if t.name == table_name:
                 t.add_identifier(col_name, col_value)
+                return
 
     def close_table(self, table_name, statement_list):
         for t in self.tlist:
@@ -429,6 +431,7 @@ class TableList:
                 statement_list.append(t.create_insert())
                 self.tlist.remove(t)
                 del t
+                return
 
 
 class Table:
@@ -446,12 +449,14 @@ class Table:
     def __init__(self, name, parent_name, table_list, table_path, parser):
         # initialization gets the parent
         # If there is a parent, the table first inherits the parent's identifiers
-        # It then asks the parent for the next value in it's own identifier and adds that to the identifier list.
-        # I could rewrite the later half as a function going through the TableList and it may be more correct, but this works well enough
+        # It then asks the parent for the next value in it's own identifier and adds
+        #  that to the identifier list.
+        # I could rewrite the later half as a function going through the TableList and
+        #  it may be more correct, but this works well enough
 
         self.name = name
-        self.columns = {}
-        self.identifiers = {}
+        self.columns = OrderedDict()
+        self.identifiers = OrderedDict()
         self.counters = defaultdict(int)
         self.parent_name = parent_name
         self.parser = parser
@@ -463,7 +468,7 @@ class Table:
             for table in table_list.tlist:
                 if table.name == parent_name:
                     parent = table
-                    for identifier_name, identifier_value in parent.get_identifiers().items():
+                    for identifier_name, identifier_value in parent.identifiers.items():
                         self.add_identifier(identifier_name, identifier_value)
                     new_id, new_id_ct = parent.get_counter(table_path)
                     self.add_identifier(new_id, new_id_ct)
@@ -491,32 +496,23 @@ class Table:
         self.counters[ctr_id] += 1
         return ctr_id, self.counters[ctr_id]
 
-    def get_identifiers(self):
-        # This returns the set of identifiers for the table, used when a child
-        #  table is created to copy down the identifiers for the foreign key
-        return self.identifiers
-
     def create_insert(self):
-        # Generates the insert statement for this table.
-        # This is invoked when the table is closed. It goes through first the
-        #  identifier list, then the column list and creates the insert statement.
-        # The statement string is returned. This is then pushed onto a stack.
-        col_list = ''
-        val_list = ''
-        for col_name, col_value in self.identifiers.items():
-            if col_list != '':
-                col_list = col_list + ','
-                val_list = val_list + ','
-            col_list = col_list + self.table_quote + col_name + self.table_quote
-            val_list = val_list + str(col_value)
-        for col_name, col_value in self.columns.items():
-            if col_list != "":
-                col_list = col_list + ','
-                val_list = val_list + ','
-            col_list = col_list + self.table_quote + col_name + self.table_quote
-            val_list = val_list + self.value_quote + self.db_string(col_value) + self.value_quote
-        statement = 'INSERT INTO %s%s%s (%s) VALUES (%s);' % (self.table_quote, self.name, self.table_quote, col_list, val_list)
-        return statement
+
+        col_list = ','.join([
+            f'{self.table_quote}{col_name}{self.table_quote}'
+            for col_name in list(self.identifiers.keys()) + list(self.columns.keys())])
+        val_list = ','.join(
+            [f'{col_value}' for col_value in self.identifiers.values()] +
+            [
+                f'{self.value_quote}{self.db_string(col_value)}{self.value_quote}'
+                for col_value in self.columns.values()
+            ]
+        )
+
+        return (
+            f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} '
+            f'({col_list}) VALUES ({val_list});')
+
 
 def main():
     ''' Command-line entry-point. '''
