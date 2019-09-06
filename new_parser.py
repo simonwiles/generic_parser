@@ -347,7 +347,7 @@ class Parser:
                 if attrib_name == "table":
                     self.table_dict[f'{self.namespace}{newpath}'] = attrib_value
                 elif attrib_name == "ctr_id":
-                    self.ctr_dict[attrib_path] = attrib_value
+                    self.ctr_dict[f'{self.namespace}{newpath}'] = attrib_value
                 elif attrib_name == "file_number":
                     self.file_number_dict[attrib_path] = attrib_value
                 else:
@@ -472,7 +472,7 @@ class Table:
         # The parent Table will look for the name in the list of Counters
         #  if found, add 1 and report the [name, number]
         #  else, create a new Counter in the list and report [name, 1]
-        _table, ctr_id = self.parser.ctr_dict[f'{name}/ctr_id'].split(":", 1)
+        _table, ctr_id = self.parser.ctr_dict[f'{name}/'].split(":", 1)
         self.counters[ctr_id] += 1
         return ctr_id, self.counters[ctr_id]
 
