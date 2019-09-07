@@ -97,6 +97,7 @@ CREATE TABLE raw_data.wos_summary (
 	normalized_language_count character varying,
 	normalized_doctype_count character varying,
 	descriptive_ref_count character varying,
+	refs_count character varying,
 	reference_count character varying,
 	address_count character varying,
 	headings_count character varying,
@@ -158,6 +159,7 @@ COMMENT ON COLUMN raw_data.wos_summary.language_count IS 'Language count';
 COMMENT ON COLUMN raw_data.wos_summary.normalized_language_count IS 'Normalized language count';
 COMMENT ON COLUMN raw_data.wos_summary.normalized_doctype_count IS 'Normalized document type count';
 COMMENT ON COLUMN raw_data.wos_summary.descriptive_ref_count IS 'Descriptive reference count. Used for qualitative reference count. e.g. "Many refs".';
+COMMENT ON COLUMN raw_data.wos_summary.refs_count IS 'Reference count';
 COMMENT ON COLUMN raw_data.wos_summary.reference_count IS 'Reference count';
 COMMENT ON COLUMN raw_data.wos_summary.address_count IS 'Address count';
 COMMENT ON COLUMN raw_data.wos_summary.headings_count IS 'Heading count';

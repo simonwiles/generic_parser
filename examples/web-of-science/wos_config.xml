@@ -110,7 +110,7 @@
 					<doctype table="wos_normalized_doctypes" ctr_id="wos_normalized_doctypes:doctype_id" code="wos_normalized_doctypes:code">wos_normalized_doctypes:doctype</doctype>
 				</normalized_doctypes>
 				<descriptive_ref_count>wos_summary:descriptive_ref_count</descriptive_ref_count>
-				<refs count="wos_summary:reference_count"></refs>
+				<refs count="wos_summary:refs_count"></refs>
 				<references count="wos_summary:reference_count">
 					<reference table="wos_references" ctr_id="wos_references:ref_ctr">
 						<uid>wos_references:ref_id</uid>
