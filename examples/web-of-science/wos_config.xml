@@ -67,7 +67,7 @@
 								<suborganization table="wos_publisher_suborganizations" ctr_id="wos_publisher_suborganizations:suborg_id" lang_id="wos_publisher_suborganizations:lang_id">wos_publisher_suborganizations:suborganization</suborganization>
 							</suborganizations>
 							<email_addr table="wos_publisher_email_addr" ctr_id="wos_publisher_email_addr:email_id" lang_id="wos_publisher_email_addr:lang_id">wos_publisher_email_addr:email_addr</email_addr>
-							<url_spec type="wos_publisher:url_type" date_info="wos_publisher:url_date_info" create_date="wos_publisher:url_create_date" revised_date="wos_publisher:url_revised_date" cited_date="wos_publisher:cited_date">
+							<url_spec type="wos_publisher:url_type" date_info="wos_publisher:url_date_info" create_date="wos_publisher:url_create_date" revised_date="wos_publisher:url_revised_date" cited_date="wos_publisher:url_cited_date">
 								<url>wos_publisher:url</url>
 								<dois>
 									<doi table="wos_publisher_dois" ctr_id="wos_publisher_dois:doi_id">wos_publisher_dois:doi</doi>
@@ -137,7 +137,7 @@
 								<suborganization table="wos_address_suborganizations" ctr_id="wos_address_suborganizations:suborg_id" lang_id="wos_address_suborganizations:lang_id">wos_address_suborganizations:suborganization</suborganization>
 							</suborganizations>
 							<email_addr table="wos_address_email_addr" ctr_id="wos_address_email_addr:email_id" lang_id="wos_address_email_addr:lang_id">wos_address_email_addr:email_addr</email_addr>
-							<url_spec type="wos_addresses:url_type" date_info="wos_addresses:url_date_info" create_date="wos_addresses:url_create_date" revised_date="wos_addresses:url_revised_date" cited_date="wos_addresses:cited_date">
+							<url_spec type="wos_addresses:url_type" date_info="wos_addresses:url_date_info" create_date="wos_addresses:url_create_date" revised_date="wos_addresses:url_revised_date" cited_date="wos_addresses:url_cited_date">
 								<url>wos_addresses:url</url>
 								<dois>
 									<doi table="wos_address_dois" ctr_id="wos_address_dois:doi_id">wos_address_dois:doi</doi>
@@ -232,7 +232,7 @@
 							<suborganization table="wos_reprint_address_suborganizations" ctr_id="wos_reprint_address_suborganizations:suborg_id" lang_id="wos_reprint_address_suborganizations:lang_id">wos_reprint_address_suborganizations:suborganization</suborganization>
 						</suborganizations>
 						<email_addr table="wos_reprint_address_email_addr" ctr_id="wos_reprint_address_email_addr:email_id" lang_id="wos_reprint_address_email_addr:lang_id">wos_reprint_address_email_addr:email_addr</email_addr>
-						<url_spec type="wos_reprint_addresses:url_type" date_info="wos_reprint_addresses:url_date_info" create_date="wos_reprint_addresses:url_create_date" revised_date="wos_reprint_addresses:url_revised_date" cited_date="wos_reprint_addresses:cited_date">
+						<url_spec type="wos_reprint_addresses:url_type" date_info="wos_reprint_addresses:url_date_info" create_date="wos_reprint_addresses:url_create_date" revised_date="wos_reprint_addresses:url_revised_date" cited_date="wos_reprint_addresses:url_cited_date">
 							<url>wos_reprint_addresses:url</url>
 							<dois>
 								<doi table="wos_reprint_address_dois" ctr_id="wos_reprint_address_dois:doi_id">wos_reprint_address_dois:doi</doi>
