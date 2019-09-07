@@ -45,7 +45,7 @@ class Parser:
             logging.fatal('specified input is invalid')
             exit(1)
 
-        self.output_dir = args.output
+        self.output_dir = Path(args.output)
 
         self.namespace = args.namespace
 
@@ -76,20 +76,17 @@ class Parser:
         for filepath in self.xml_files:
             self.parse_file(filepath)
 
-        for table in self.tables.values():
-            table.close_table()
-
 
     def parse_file(self, filepath):
 
 
         logging.info(f'Parsing file: {filepath}')
 
-        self.current_output_path = Path(self.output_dir) / filepath.stem
+        self.current_output_path = self.output_dir / filepath.stem
         self.current_output_path.mkdir(parents=True, exist_ok=True)
         logging.info(f'Writing files to: {self.current_output_path}')
 
-        logging.info("Start time: %s" % datetime.datetime.now())
+        logging.info(f'Start time: {datetime.datetime.now()}')
 
         # the root of what we're processing may not be the root of the file
         #  itself
@@ -161,9 +158,9 @@ class Parser:
                     if self.id_tag != self.rec_tag:
                         id_seek = self.id_tag
                         id_node = node.find(id_seek)
-                        id_value = f"'{id_node.text}'"
+                        id_value = id_node.text
                     else:
-                        id_value = f"'{node.text}'"
+                        id_value = node.text
 
                     # set the primary key
                     main_record.add_identifier('id', id_value)
@@ -177,7 +174,20 @@ class Parser:
                     main_record.close_record()
                     node.clear()
 
-        logging.info("End time: %s" % datetime.datetime.now())
+        load_all_path = self.current_output_path.joinpath('load_all.psql')
+        with open(load_all_path, 'w') as _fh:
+            _fh.write('BEGIN;\n')
+
+            for table_name, table in self.tables.items():
+                _fh.write(f'\\ir {table_name}.sql\n')
+                table.close_table()
+
+            _fh.write('COMMIT;')
+            self.tables = {}
+
+
+        logging.info(f'End time: {datetime.datetime.now()}')
+        logging.info(f'Execute (e.g.): psql -d <db_name> -f {load_all_path}')
 
 
     def write_columns(self, node, path=None, record=None):
@@ -196,20 +206,20 @@ class Parser:
             if attribpath in self.attrib_dict:
                 table_name, col_name = \
                     self.attrib_dict[attribpath].split(":")[:2]
-                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
+                self.get_record(table_name, path, record).add_value(col_name, str(attrib_value))
                 attrib_seen.add(attrib_name)
 
         # process default attribute values
         for attrib_name, attrib_value_all in self.attrib_defaults.get(path, {}).items():
             if attrib_name not in attrib_seen:
                 table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
-                self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
+                self.get_record(table_name, path, record).add_value(col_name, str(attrib_value))
 
         # process value
         if path in self.value_dict:
             if node.text is not None:
                 table_name, col_name = self.value_dict[path].split(":", 1)
-                self.get_record(table_name, path, record).add_col(col_name, str(node.text))
+                self.get_record(table_name, path, record).add_value(col_name, str(node.text))
 
 
     def parse_node(self, node, parent_path, parent_record):
@@ -319,7 +329,7 @@ class Parser:
         if table_path is not None:
             _table, ctr_id = self.ctr_dict[table_path].split(":", 1)
 
-        fields = ['id'] + self.fields[table_name]
+        fields = self.fields[table_name]
         output_path = self.current_output_path.joinpath(f'{table_name}.sql')
 
         table = Table(
@@ -345,16 +355,13 @@ class Table:
         # If there is a parent, the table first inherits the parent's identifiers
         # It then asks the parent for the next value in it's own identifier and adds
         #  that to the identifier list.
-        # I could rewrite the later half as a function going through the TableList and
-        #  it may be more correct, but this works well enough
 
         self.name = name
-        self.fields = fields
         self.ctr_id = ctr_id
         self.parent_table = parent_table
 
-        self.columns = OrderedDict()
-        self.identifiers = OrderedDict()
+        self.columns = {}
+        self.identifiers = {}
         self.counters = defaultdict(int)
 
         self.table_quote = '"'
@@ -362,26 +369,44 @@ class Table:
 
         self.record_open = False
 
+        self.fields = ['id']
         if self.parent_table is not None:
-            self.fields += [*self.parent_table.identifiers.keys()]
+            self.fields.extend(
+                [field for field in self.parent_table.identifiers.keys() if field != 'id'])
+        self.fields.extend(fields)
+
 
         self._fh = open(output_path, 'w')
         logging.debug(f'Opened {self._fh.name} for writing...')
-        self._fh.write("BEGIN;\n")
+        self.write_insert_statement_begin()
 
 
-    def db_string(self, s):
-        if s is None:
+    def write_insert_statement_begin(self):
+        col_list = ','.join([
+            f'{self.table_quote}{col_name}{self.table_quote}' for col_name in self.fields])
+        self._fh.write(
+            f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} ({col_list}) VALUES')
+
+
+    def prep_db_value(self, value):
+        if value is None:
             return 'NULL'
-        return str(s).replace("'", "''").replace('\\', '\\\\').replace('\n', '')
 
-    def add_col(self, col_name, col_value):
-        # Simply adds a (col_name, col_value) pair to the list to be output, called via TableList.add_col
-        self.columns[col_name] = col_value
+        if not isinstance(value, str):
+            return str(value)
+
+        value = value.replace("'", "''").replace('\\', '\\\\').replace('\n', '')
+        return f'{self.value_quote}{value}{self.value_quote}'
+
 
     def add_identifier(self, col_name, col_value):
-        # Adds a new column, value to the identifier list. Should only happen at the start of a record
         self.identifiers[col_name] = col_value
+
+
+    def add_value(self, col_name, col_value):
+        # Simply adds a (col_name, col_value) pair to the list to be output
+        self.columns[col_name] = col_value
+
 
     def new_record(self):
         # counters are unique per parent_id, so reset them here
@@ -395,10 +420,10 @@ class Table:
 
             # if this table needs a counter, add the next one off the rank
             if self.ctr_id is not None:
-                new_id, new_id_ct = self.parent_table.get_counter(self.ctr_id)
-                self.add_identifier(new_id, new_id_ct)
+                self.add_identifier(self.ctr_id, self.parent_table.get_counter(self.ctr_id))
 
         self.record_open = True
+
 
     def get_counter(self, ctr_id):
         # This accepts a counter name and returns the next value for that counter
@@ -407,9 +432,10 @@ class Table:
         #  if found, add 1 and report the [name, number]
         #  else, create a new Counter in the list and report [name, 1]
         self.counters[ctr_id] += 1
-        return ctr_id, self.counters[ctr_id]
+        return self.counters[ctr_id]
 
-    def create_insert(self):
+
+    def create_full_insert(self):
 
         col_list = ','.join([
             f'{self.table_quote}{col_name}{self.table_quote}'
@@ -426,15 +452,27 @@ class Table:
             f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} '
             f'({col_list}) VALUES ({val_list});')
 
+
+    def write_values_sql(self):
+        values = [
+            self.identifiers.get(field, False) or self.columns.get(field, None)
+            for field in self.fields]
+        self._fh.write(
+            f'\n\t({",".join([self.prep_db_value(value) for value in values])}),')
+
+
     def close_record(self):
-        self._fh.write(self.create_insert() + '\n')
+        # self._fh.write(self.create_insert() + '\n')
+        self.write_values_sql()
         self.columns = OrderedDict()
         self.identifiers = OrderedDict()
         self.record_open = False
 
+
     def close_table(self):
         assert not self.columns and not self.identifiers
-        self._fh.write('COMMIT;\n')
+        self._fh.seek(self._fh.tell() - 1, os.SEEK_SET)
+        self._fh.write(';\n')
         self._fh.close()
 
 
