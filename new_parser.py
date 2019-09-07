@@ -30,6 +30,7 @@ class Parser:
         self.attrib_dict = {}
         self.attrib_defaults = defaultdict(dict)
         self.file_number_dict = {}
+        self.fields = defaultdict(list)
 
         self.tables = {}
         self.current_output_path = None
@@ -204,7 +205,6 @@ class Parser:
                 table_name, col_name, attrib_value = attrib_value_all.split(":")[:3]
                 self.get_record(table_name, path, record).add_col(col_name, str(attrib_value))
 
-
         # process value
         if path in self.value_dict:
             if node.text is not None:
@@ -260,6 +260,8 @@ class Parser:
             # write the value lookup for the tag
             if node.text is not None:
                 if str(node.text).strip() != '':
+                    table, field = node.text.split(':')
+                    self.fields[table].append(field)
                     self.value_dict[path] = node.text
 
             # go through the attributes in the config file
@@ -272,12 +274,17 @@ class Parser:
                 if attrib_name == "table":
                     self.table_dict[path] = attrib_value
                 elif attrib_name == "ctr_id":
+                    table, field = attrib_value.split(':')
+                    self.fields[table].append(field)
                     self.ctr_dict[path] = attrib_value
                 elif attrib_name == "file_number":
+                    table, field = attrib_value.split(':')
+                    self.fields[table].append(field)
                     self.file_number_dict[path] = attrib_value
                 else:
+                    table, field = attrib_value.split(':')
+                    self.fields[table].append(field)
                     self.attrib_dict[attrib_path] = attrib_value
-
                     # Providing a third tuple item specifies the default value
                     #  for that attribute
                     # If the attribute isn't found in the data, use the default
@@ -311,7 +318,12 @@ class Parser:
         ctr_id = None
         if table_path is not None:
             _table, ctr_id = self.ctr_dict[table_path].split(":", 1)
-        table = Table(table_name, self.current_output_path, ctr_id, parent_table)
+
+        fields = ['id'] + self.fields[table_name]
+        output_path = self.current_output_path.joinpath(f'{table_name}.sql')
+
+        table = Table(
+            table_name, fields, output_path, ctr_id, parent_table)
         self.tables[table_name] = table
         return table
 
@@ -328,7 +340,7 @@ class Table:
     """
 
     # SIMON: this is the place to subclass PostgresTable, MySQLTable...
-    def __init__(self, name, output_path, ctr_id=None, parent_table=None):
+    def __init__(self, name, fields, output_path, ctr_id=None, parent_table=None):
         # initialization gets the parent
         # If there is a parent, the table first inherits the parent's identifiers
         # It then asks the parent for the next value in it's own identifier and adds
@@ -337,6 +349,7 @@ class Table:
         #  it may be more correct, but this works well enough
 
         self.name = name
+        self.fields = fields
         self.ctr_id = ctr_id
         self.parent_table = parent_table
 
@@ -349,7 +362,10 @@ class Table:
 
         self.record_open = False
 
-        self._fh = open(output_path.joinpath(f'{name}.sql'), 'w')
+        if self.parent_table is not None:
+            self.fields += [*self.parent_table.identifiers.keys()]
+
+        self._fh = open(output_path, 'w')
         logging.debug(f'Opened {self._fh.name} for writing...')
         self._fh.write("BEGIN;\n")
 
@@ -397,7 +413,7 @@ class Table:
 
         col_list = ','.join([
             f'{self.table_quote}{col_name}{self.table_quote}'
-            for col_name in list(self.identifiers.keys()) + list(self.columns.keys())])
+            for col_name in [*self.identifiers.keys(), *self.columns.keys()]])
         val_list = ','.join(
             [f'{col_value}' for col_value in self.identifiers.values()] +
             [
