@@ -356,6 +356,8 @@ class Table:
         # It then asks the parent for the next value in it's own identifier and adds
         #  that to the identifier list.
 
+        self.write_csv = True
+
         self.name = name
         self.ctr_id = ctr_id
         self.parent_table = parent_table
@@ -378,7 +380,10 @@ class Table:
 
         self._fh = open(output_path, 'w')
         logging.debug(f'Opened {self._fh.name} for writing...')
-        self.write_insert_statement_begin()
+        if self.write_csv:
+            self.write_csv_header()
+        else:
+            self.write_insert_statement_begin()
 
 
     def write_insert_statement_begin(self):
@@ -386,6 +391,13 @@ class Table:
             f'{self.table_quote}{col_name}{self.table_quote}' for col_name in self.fields])
         self._fh.write(
             f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} ({col_list}) VALUES')
+
+
+    def write_csv_header(self):
+        csv_header = ','.join(self.fields)
+        self._fh.write(
+            f'\\COPY {self.name} ({csv_header}) '
+            'FROM STDIN WITH (FORMAT CSV, DELIMITER E\'\\t\')\n')
 
 
     def prep_db_value(self, value):
@@ -397,6 +409,17 @@ class Table:
 
         value = value.replace("'", "''").replace('\\', '\\\\').replace('\n', '')
         return f'{self.value_quote}{value}{self.value_quote}'
+
+
+    def prep_db_value_csv(self, value):
+        if value is None:
+            return ''
+
+        if not isinstance(value, str):
+            return str(value)
+
+        value = value.replace('"', '""').replace('\\', '\\\\').replace('\n', '')
+        return f'"{value}"'
 
 
     def add_identifier(self, col_name, col_value):
@@ -461,18 +484,33 @@ class Table:
             f'\n\t({",".join([self.prep_db_value(value) for value in values])}),')
 
 
+    def write_values_csv(self):
+        values = '\t'.join([
+            self.prep_db_value_csv(
+                self.identifiers.get(field, False) or self.columns.get(field, None)
+            )
+            for field in self.fields])
+        self._fh.write(f'{values}\n')
+
+
     def close_record(self):
-        # self._fh.write(self.create_insert() + '\n')
-        self.write_values_sql()
-        self.columns = OrderedDict()
-        self.identifiers = OrderedDict()
+        if self.write_csv:
+            self.write_values_csv()
+        else:
+            self.write_values_sql()
+
+        self.columns = {}
+        self.identifiers = {}
         self.record_open = False
 
 
     def close_table(self):
         assert not self.columns and not self.identifiers
-        self._fh.seek(self._fh.tell() - 1, os.SEEK_SET)
-        self._fh.write(';\n')
+        if self.write_csv:
+            self._fh.write('\\.\n')
+        else:
+            self._fh.seek(self._fh.tell() - 1, os.SEEK_SET)
+            self._fh.write(';\n')
         self._fh.close()
 
 
