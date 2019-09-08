@@ -32,7 +32,6 @@ class Parser:
         self.file_number_dict = {}
 
         self.tables = {}
-        self.current_file_number = None
 
         self.xml_files = Path(args.xml_source)
 
@@ -60,7 +59,7 @@ class Parser:
             with open(args.file_number_sheet, 'r') as _fh:
                 self.file_number_lookup = dict(csv.reader(_fh))
         else:
-            self.file_number_lookup = {}
+            self.file_number_lookup = False
 
         # STEP 2 - Convert the config file into lookup tables
         # write lookup tables for table creation, counters, value and
@@ -86,9 +85,6 @@ class Parser:
         logging.info("Start time: %s" % datetime.datetime.now())
         output = open(outputtarget, "w")
         output.write("BEGIN;\n")
-
-        # get file number
-        self.current_file_number = self.file_number_lookup.get(filepath.name, -1)
 
         # the root of what we're processing may not be the root of the file
         #  itself
@@ -208,11 +204,13 @@ class Parser:
 
 
     def write_columns(self, node, path=None, record=None):
-        file_number_name = \
-            self.file_number_dict.get(path, False)
-        if file_number_name:
-            table_name, col_name = file_number_name.split(":", 1)
-            self.get_record(table_name, path, record).add_col(col_name, self.current_file_number)
+        if self.file_number_lookup:
+            file_number_name = \
+                self.file_number_dict.get(path, False)
+            if file_number_name:
+                file_number = self.file_number_lookup.get(filepath.name, -1)
+                table_name, col_name = file_number_name.split(":", 1)
+                self.get_record(table_name, path, record).add_col(col_name, file_number)
 
         # process attributes
         attrib_seen = set()
