@@ -73,7 +73,7 @@
 									<doi table="wos_publisher_dois" ctr_id="wos_publisher_dois:doi_id">wos_publisher_dois:doi</doi>
 								</dois>
 							</url_spec>
-							<laboratory lang_id="wos_publisher:laboratory:lang_id">wos_publisher:laboratory</laboratory>
+							<laboratory lang_id="wos_publisher:laboratory_lang_id">wos_publisher:laboratory</laboratory>
 							<street lang_id="wos_publisher:street_lang_id">wos_publisher:street</street>
 							<city lang_id="wos_publisher:city_lang_id">wos_publisher:city</city>
 							<province lang_id="wos_publisher:province_lang_id">wos_publisher:province</province>
@@ -143,7 +143,7 @@
 									<doi table="wos_address_dois" ctr_id="wos_address_dois:doi_id">wos_address_dois:doi</doi>
 								</dois>
 							</url_spec>
-							<laboratory lang_id="wos_addresses:laboratory:lang_id">wos_addresses:laboratory</laboratory>
+							<laboratory lang_id="wos_addresses:laboratory_lang_id">wos_addresses:laboratory</laboratory>
 							<street lang_id="wos_addresses:street_lang_id">wos_addresses:street</street>
 							<city lang_id="wos_addresses:city_lang_id">wos_addresses:city</city>
 							<province lang_id="wos_addresses:province_lang_id">wos_addresses:province</province>
@@ -238,7 +238,7 @@
 								<doi table="wos_reprint_address_dois" ctr_id="wos_reprint_address_dois:doi_id">wos_reprint_address_dois:doi</doi>
 							</dois>
 						</url_spec>
-						<laboratory lang_id="wos_reprint_addresses:laboratory:lang_id">wos_reprint_addresses:laboratory</laboratory>
+						<laboratory lang_id="wos_reprint_addresses:laboratory_lang_id">wos_reprint_addresses:laboratory</laboratory>
 						<street lang_id="wos_reprint_addresses:street_lang_id">wos_reprint_addresses:street</street>
 						<city lang_id="wos_reprint_addresses:city_lang_id">wos_reprint_addresses:city</city>
 						<province lang_id="wos_reprint_addresses:province_lang_id">wos_reprint_addresses:province</province>
