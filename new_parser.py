@@ -73,8 +73,17 @@ class Parser:
         # STEP 3 - Parse the file(s)
         # now that we have lookups, we start with the files themselves
 
+        master_psql_path = self.output_dir.joinpath('load_all.psql')
+        self.master_psql_fh = open(master_psql_path, 'w')
+
+        self.master_psql_fh.write('BEGIN;\n')
+
         for filepath in self.xml_files:
             self.parse_file(filepath)
+
+        self.master_psql_fh.write('COMMIT;')
+        self.master_psql_fh.close()
+        logging.info(f'Execute (e.g.): psql -d <db_name> -f {master_psql_path}')
 
 
     def parse_file(self, filepath):
@@ -174,12 +183,15 @@ class Parser:
                     main_record.close_record()
                     node.clear()
 
-        load_all_path = self.current_output_path.joinpath('load_all.psql')
-        with open(load_all_path, 'w') as _fh:
+        psql_path = self.current_output_path.joinpath(f'{filepath.stem}.psql')
+        with open(psql_path, 'w') as _fh:
             _fh.write('BEGIN;\n')
 
             for table_name, table in self.tables.items():
                 _fh.write(f'\\ir {table_name}.sql\n')
+                relative_table_path = \
+                    self.current_output_path.joinpath(table_name).relative_to(self.output_dir)
+                self.master_psql_fh.write(f'\\ir {relative_table_path}.sql\n')
                 table.close_table()
 
             _fh.write('COMMIT;')
@@ -187,7 +199,7 @@ class Parser:
 
 
         logging.info(f'End time: {datetime.datetime.now()}')
-        logging.info(f'Execute (e.g.): psql -d <db_name> -f {load_all_path}')
+        logging.info(f'Execute (e.g.): psql -d <db_name> -f {psql_path}')
 
 
     def write_columns(self, node, path=None, record=None):
