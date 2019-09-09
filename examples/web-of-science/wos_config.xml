@@ -34,7 +34,7 @@
 				<conferences count="wos_summary:conference_count">
 					<conference table="wos_conference" ctr_id="wos_conference:conf_record_id" conf_id="wos_conference:conf_id">
 						<conf_infos count="wos_conference:conf_info_count">
-							<conf_info table="wos_conf_info" ctr_id="wos_conf_info:info_id" lang_id="wos_conf_info:lang_ind">wos_conf_info:conf_info</conf_info>
+							<conf_info table="wos_conf_info" ctr_id="wos_conf_info:info_id" lang_id="wos_conf_info:lang_id">wos_conf_info:conf_info</conf_info>
 						</conf_infos>
 						<conf_titles count="wos_conference:conf_title_count">
 							<conf_title table="wos_conf_title" ctr_id="wos_conf_title:title_id" lang_id="wos_conf_title:lang_id">wos_conf_title:conf_title</conf_title>
