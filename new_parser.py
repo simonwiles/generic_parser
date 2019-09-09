@@ -187,17 +187,6 @@ class Parser:
 
                     # finished individual record
 
-            if node.getparent() is None and event == "end":
-                break
-                # some versions of lxml run off the end of the file. This
-                #  forces the for loop to break at the root.
-
-
-        # reenable unique constraint checking and close the output file
-        # if db_mode == "mysql":
-        #     output.write("SET unique_checks=1;\n")
-        #     output.write("SET autocommit=1;\n")
-        # if single_trans:
         output.write("COMMIT;\n")
         output.close()
         logging.info("End time: %s" % datetime.datetime.now())
@@ -461,8 +450,7 @@ def main():
         '-c', '--config-file', action='store', required=True,
         help='configuration file')
 
-    # -o REQUIRED, can be either a directory, or if a single-file run, a file
-    #    name.
+    # -o REQUIRED, can be either a directory, or if a single-file run, a file name.
     parser.add_argument(
         '-o', '--output', action='store', required=True,
         help='output file or directory')
@@ -495,17 +483,6 @@ def main():
     parser.add_argument(
         '-l', '--file-number-sheet', action='store',
         help='CSV file with the file name to file number lookup')
-
-    # -m, database mode, a toggle between MySQL and PostgreSQL?
-    parser.add_argument(
-        '-m', '--database-mode', action='store',
-        help='MySQL or Postgres, defaults to Postgres')
-
-    # -s, wraps the entire file's output into a single transaction, good for
-    #     speed if DB has an autocommit that you can't disable.
-    parser.add_argument(
-        '-s', '--single-trans', action='store_true',
-        help='If true, will enable one transaction per file')
 
     # -z, gives the option to recurse through a directory as opposed to just
     #     reading the core output.
