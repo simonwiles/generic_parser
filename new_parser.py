@@ -390,7 +390,7 @@ class Table:
         self.fields.extend(fields)
 
 
-        self._fh = open(output_path, 'w')
+        self._fh = open(output_path, 'w', encoding='UTF-8')
         logging.debug(f'Opened {self._fh.name} for writing...')
         if self.write_csv:
             self.write_csv_header()
