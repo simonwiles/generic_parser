@@ -183,7 +183,7 @@
 					<fund_text>wos_summary:fund_ack</fund_text>
 					<grants count="wos_summary:grants_count" complete="wos_summary:grants_complete">
 						<grant table="wos_grants" ctr_id="wos_grants:grant_id">
-							<grant_info lang_id="wos_grants:grant_info_language">wos_grants:grant_info</grant_info>
+							<grant_info lang_id="wos_grants:grant_info_lang_id">wos_grants:grant_info</grant_info>
 							<grant_agency lang_id="wos_grants:grant_agency_lang_id" preferred="wos_grants:grant_agency_preferred">wos_grants:grant_agency</grant_agency>
 							<alt_agencies count="wos_grants:alt_agency_count">
 								<alt_agency table="wos_grant_alt_agencies" ctr_id="wos_grant_alt_agencies:alt_agency_id" lang_id="wos_grant_alt_agencies:lang_id" preferred="wos_grant_alt_agencies:preferred">wos_grant_alt_agencies:alt_agency</alt_agency>
@@ -198,10 +198,10 @@
 					</grants>
 				</fund_ack>
 				<keywords count="wos_summary:keyword_count">
-					<keyword table="wos_keywords" ctr_id="wos_keywords:keyword_id" lang_id="wos_keywords:keyword_language">wos_keywords:keyword</keyword>
+					<keyword table="wos_keywords" ctr_id="wos_keywords:keyword_id" lang_id="wos_keywords:keyword_lang_id">wos_keywords:keyword</keyword>
 				</keywords>
 				<abstracts count="wos_summary:abstract_count">
-					<abstract table="wos_abstracts" ctr_id="wos_abstracts:abstract_id" lang_id="wos_abstracts:abstract_language" type="wos_abstracts:abstract_type" provider="wos_abstract:provider">
+					<abstract table="wos_abstracts" ctr_id="wos_abstracts:abstract_id" lang_id="wos_abstracts:abstract_lang_id" type="wos_abstracts:abstract_type" provider="wos_abstract:provider">
 						<abstract_text count="wos_abstracts:paragraph_count">
 							<p table="wos_abstract_paragraphs" ctr_id="wos_abstract_paragraphs:paragraph_id" label="wos_abstract_paragraphs:paragraph_label">wos_abstract_paragraphs:paragraph_text</p>
 						</abstract_text>
@@ -263,7 +263,7 @@
 					</names>
 				</reprint_contact>
 				<keywords_plus count="wos_summary:keywords_plus_count">
-					<keyword table="wos_keywords_plus" ctr_id="wos_keywords_plus:keyword_id" lang_id="wos_keywords_plus:keyword_language">wos_keywords_plus:keyword_plus</keyword>
+					<keyword table="wos_keywords_plus" ctr_id="wos_keywords_plus:keyword_id" lang_id="wos_keywords_plus:keyword_lang_id">wos_keywords_plus:keyword_plus</keyword>
 				</keywords_plus>
 				<book_chapters>wos_summary:book_chapters</book_chapters>
 				<book_pages>wos_summary:book_pages</book_pages>

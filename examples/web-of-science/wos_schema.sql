@@ -1240,9 +1240,9 @@ CREATE TABLE raw_data.wos_grants (
 	id character varying NOT NULL,
 	grant_id integer NOT NULL,
 	grant_info character varying,
-	grant_info_language character varying,
+	grant_info_lang_id character varying,
 	grant_agency character varying,
-	grant_agency_language character varying,
+	grant_agency_lang_id character varying,
 	grant_agency_preferred character varying,
 	alt_agency_count character varying,
 	grant_id_count character varying,
@@ -1259,9 +1259,9 @@ COMMENT ON TABLE raw_data.wos_grants IS 'Grant data';
 COMMENT ON COLUMN raw_data.wos_grants.id IS 'Record ID (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_grants.grant_id IS 'Order of grant record (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_grants.grant_info IS 'Unparsed grant information';
-COMMENT ON COLUMN raw_data.wos_grants.grant_info_language IS 'Language of grant information';
+COMMENT ON COLUMN raw_data.wos_grants.grant_info_lang_id IS 'Language of grant information';
 COMMENT ON COLUMN raw_data.wos_grants.grant_agency IS 'Grant agency';
-COMMENT ON COLUMN raw_data.wos_grants.grant_agency_language IS 'Language of grant agency';
+COMMENT ON COLUMN raw_data.wos_grants.grant_agency_lang_id IS 'Language of grant agency';
 COMMENT ON COLUMN raw_data.wos_grants.grant_agency_preferred IS 'Preferred agency flag';
 COMMENT ON COLUMN raw_data.wos_grants.alt_agency_count IS 'Alternate agency count';
 COMMENT ON COLUMN raw_data.wos_grants.grant_id_count IS 'Grant ID count';
@@ -1323,7 +1323,7 @@ CREATE TABLE raw_data.wos_keywords (
         id character varying NOT NULL,
         keyword_id integer NOT NULL,
         keyword character varying,
-	keyword_language character varying
+	keyword_lang_id character varying
 );
 ALTER TABLE ONLY raw_data.wos_keywords
         ADD CONSTRAINT unique_keywords UNIQUE (id, keyword_id);
@@ -1334,7 +1334,7 @@ COMMENT ON TABLE raw_data.wos_keywords IS 'Keywords';
 COMMENT ON COLUMN raw_data.wos_keywords.id IS 'Record ID (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_keywords.keyword_id IS 'Order of keyword record (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_keywords.keyword IS 'Keyword';
-COMMENT ON COLUMN raw_data.wos_keywords.keyword_language IS 'Language of keyword';
+COMMENT ON COLUMN raw_data.wos_keywords.keyword_lang_id IS 'Language of keyword';
 
 REVOKE ALL ON TABLE raw_data.wos_keywords FROM PUBLIC;
 REVOKE ALL ON TABLE raw_data.wos_keywords FROM postgres;
@@ -1343,7 +1343,7 @@ GRANT ALL ON TABLE raw_data.wos_keywords TO postgres;
 CREATE TABLE raw_data.wos_abstracts (
         id character varying NOT NULL,
         abstract_id integer NOT NULL,
-	abstract_language character varying,
+	abstract_lang_id character varying,
         abstract_type character varying,
 	provider character varying,
 	copyright_information character varying,
@@ -1358,7 +1358,7 @@ COMMENT ON TABLE raw_data.wos_abstracts IS 'Abstracts';
 COMMENT ON COLUMN raw_data.wos_abstracts.id IS 'Record ID (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_abstracts.abstract_id IS 'Order of abstract record (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_abstracts.abstract_type IS 'Abstract type';
-COMMENT ON COLUMN raw_data.wos_abstracts.abstract_language IS 'Language of abstract';
+COMMENT ON COLUMN raw_data.wos_abstracts.abstract_lang_id IS 'Language of abstract';
 COMMENT ON COLUMN raw_data.wos_abstracts.provider IS 'Abstract provider';
 COMMENT ON COLUMN raw_data.wos_abstracts.paragraph_count IS 'Number of paragraphs in abstract';
 
@@ -1705,7 +1705,7 @@ CREATE TABLE raw_data.wos_keywords_plus (
         id character varying NOT NULL,
         keyword_id integer NOT NULL,
         keyword_plus character varying,
-        keyword_language character varying
+        keyword_lang_id character varying
 );
 ALTER TABLE ONLY raw_data.wos_keywords_plus
         ADD CONSTRAINT unique_keywords_plus UNIQUE (id, keyword_id);
@@ -1716,7 +1716,7 @@ COMMENT ON TABLE raw_data.wos_keywords_plus IS 'Keywords Plus. Keywords generate
 COMMENT ON COLUMN raw_data.wos_keywords_plus.id IS 'Record ID (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_keywords_plus.keyword_id IS 'Order of keyword record (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_keywords_plus.keyword_plus IS 'Keyword Plus.';
-COMMENT ON COLUMN raw_data.wos_keywords_plus.keyword_language IS 'Language of keyword';
+COMMENT ON COLUMN raw_data.wos_keywords_plus.keyword_lang_id IS 'Language of keyword';
 
 REVOKE ALL ON TABLE raw_data.wos_keywords_plus FROM PUBLIC;
 REVOKE ALL ON TABLE raw_data.wos_keywords_plus FROM postgres;
