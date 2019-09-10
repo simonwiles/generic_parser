@@ -74,16 +74,26 @@ class Parser:
         # now that we have lookups, we start with the files themselves
 
         master_psql_path = self.output_dir.joinpath('load_all.psql')
-        self.master_psql_fh = open(master_psql_path, 'w')
+        master_win_psql_path = self.output_dir.joinpath('load_all_win.psql')
 
+        self.master_psql_fh = open(master_psql_path, 'w')
         self.master_psql_fh.write('BEGIN;\n')
+
+        self.master_win_psql_fh = open(master_win_psql_path, 'w')
+        self.master_win_psql_fh.write('SET client_encoding TO "UTF-8";\n')
+        self.master_win_psql_fh.write('BEGIN;\n')
 
         for filepath in self.xml_files:
             self.parse_file(filepath)
 
         self.master_psql_fh.write('COMMIT;')
         self.master_psql_fh.close()
-        logging.info(f'Execute (e.g.): psql -d <db_name> -f {master_psql_path}')
+
+        self.master_win_psql_fh.write('COMMIT;')
+        self.master_win_psql_fh.close()
+
+        logging.info(
+            f'Execute (e.g.): psql -d <db_name> -f [{master_psql_path}|{master_win_psql_path}]')
 
 
     def parse_file(self, filepath):
@@ -189,9 +199,9 @@ class Parser:
 
             for table_name, table in self.tables.items():
                 _fh.write(f'\\ir {table_name}.sql\n')
-                relative_table_path = \
-                    self.current_output_path.joinpath(table_name).relative_to(self.output_dir)
-                self.master_psql_fh.write(f'\\ir {relative_table_path}.sql\n')
+                relative_path = self.current_output_path.relative_to(self.output_dir)
+                self.master_psql_fh.write(f'\\ir {relative_path.joinpath(table_name)}.sql\n')
+                self.master_win_psql_fh.write(f'\\ir {relative_path}/{table_name}.sql\n')
                 table.close_table()
 
             _fh.write('COMMIT;')
