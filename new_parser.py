@@ -13,7 +13,7 @@ import csv
 import datetime
 import logging
 import os
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from pathlib import Path
 
 from lxml import etree
@@ -34,6 +34,8 @@ class Parser:
 
         self.tables = {}
         self.current_output_path = None
+        self.master_psql_fh = None
+        self.master_win_psql_fh = None
 
         self.xml_files = Path(args.xml_source)
 
@@ -50,8 +52,8 @@ class Parser:
         self.namespace = args.namespace
 
         # root tag can be empty, but rec and id need to be present
-        self.root_tag = args.parent
-        self.rec_tag = f'{self.namespace}{args.record}'
+        self.container_tag = args.container_tag
+        self.record_tag = f'{self.namespace}{args.record_tag}'
         self.id_tag = f'{self.namespace}{args.identifier}'
 
         # convert the file number sheet to a dictionary for speedy lookup
@@ -68,10 +70,8 @@ class Parser:
         #  attribute parsing
         self.read_config(args.config_file)
 
-
     def parse(self):
-        # STEP 3 - Parse the file(s)
-        # now that we have lookups, we start with the files themselves
+        """ Open file handles for master `.psql` files and begin to process XML files. """
 
         master_psql_path = self.output_dir.joinpath('load_all.psql')
         master_win_psql_path = self.output_dir.joinpath('load_all_win.psql')
@@ -95,9 +95,7 @@ class Parser:
         logging.info(
             f'Execute (e.g.): psql -d <db_name> -f [{master_psql_path}|{master_win_psql_path}]')
 
-
     def parse_file(self, filepath):
-
 
         logging.info(f'Parsing file: {filepath}')
 
@@ -107,25 +105,19 @@ class Parser:
 
         logging.info(f'Start time: {datetime.datetime.now()}')
 
-        # the root of what we're processing may not be the root of the file
-        #  itself
-        # we need to know what portion of the file to process
-        # we assume that there is only one of these, but it need not
-        #  necessarily be true, I think.
-
         parser_args = {
             'remove_comments': True,
             'recover': True,
             'events': ('start', 'end')
         }
 
-        if self.root_tag is None:
-            # if there is no root tag, then we've only got one record and we process everything
+        if self.container_tag is None:
+            # if there is no root tag, process everything
             process = True
-            parser_args['tag'] = self.rec_tag
+            parser_args['tag'] = self.record_tag
         else:
             # we need to split this into a list of tags by "/".
-            root_path = [f'{self.namespace}{s}' for s in self.root_tag.split("/")]
+            root_path = [f'{self.namespace}{s}' for s in self.container_tag.split("/")]
             process = False
 
         parser = etree.iterparse(str(filepath.absolute()), **parser_args)
@@ -138,7 +130,7 @@ class Parser:
             # If we close a tag that matches the root path, then we set processing to false
 
             # if there is no root path, then we set process to true earlier and just leave it that way
-            if self.root_tag is not None:
+            if self.container_tag is not None:
                 if event == 'start':
                     # add the new element to the current path
                     path_note.append(node.tag)
@@ -159,10 +151,10 @@ class Parser:
             # pass over things outside the processing area. Only process end
             #  tags.
             if event == 'end' and process is True:
-                if node.tag == self.rec_tag:
+                if node.tag == self.record_tag:
 
                     # you've got a record, now parse it
-                    path = self.rec_tag
+                    path = self.record_tag
 
                     # get the core table name from the lookup
                     main_table_name = self.table_dict[path]
@@ -174,7 +166,7 @@ class Parser:
                     # the head tag may be the identifier, if so, just grab it,
                     #  otherwise, seek it out
 
-                    if self.id_tag != self.rec_tag:
+                    if self.id_tag != self.record_tag:
                         id_seek = self.id_tag
                         id_node = node.find(id_seek)
                         id_value = id_node.text
@@ -207,10 +199,8 @@ class Parser:
             _fh.write('COMMIT;')
             self.tables = {}
 
-
         logging.info(f'End time: {datetime.datetime.now()}')
         logging.info(f'Execute (e.g.): psql -d <db_name> -f {psql_path}')
-
 
     def write_columns(self, node, path=None, record=None):
         if self.file_number_lookup:
@@ -242,7 +232,6 @@ class Parser:
             if node.text is not None:
                 table_name, col_name = self.value_dict[path].split(":", 1)
                 self.get_record(table_name, path, record).add_value(col_name, str(node.text))
-
 
     def parse_node(self, node, parent_path, parent_record):
         # recursive node parser
@@ -277,7 +266,6 @@ class Parser:
         if creating_record is True:
             record.close_record()
 
-
     def read_config(self, config_file):
 
         def update_lookup_tables(node, path):
@@ -286,8 +274,6 @@ class Parser:
             #  each tag and attribute and create the needed lookup tables
             # All tags and attributes are recorded by full path, so name
             #  reusage shouldn't be a problem
-
-
 
             # write the value lookup for the tag
             if node.text is not None:
@@ -330,10 +316,8 @@ class Parser:
                 update_lookup_tables(child, f'{path}/{child.tag}')
 
         root = etree.parse(open(config_file)).getroot()
-        root_tag = root.tag
-        path = f'{self.namespace}{root_tag}'
+        path = f'{self.namespace}{root.tag}'
         update_lookup_tables(root, path)
-
 
     def get_record(self, table_name, table_path=None, parent_table=None):
         table = self.get_or_create_table(table_name, table_path, parent_table)
@@ -341,7 +325,6 @@ class Parser:
             return table
         table.new_record()
         return table
-
 
     def get_or_create_table(self, table_name, table_path=None, parent_table=None):
         if table_name in self.tables:
@@ -399,7 +382,6 @@ class Table:
                 [field for field in self.parent_table.identifiers.keys() if field != 'id'])
         self.fields.extend(fields)
 
-
         self._fh = open(output_path, 'w', encoding='UTF-8')
         logging.debug(f'Opened {self._fh.name} for writing...')
         if self.write_csv:
@@ -407,20 +389,17 @@ class Table:
         else:
             self.write_insert_statement_begin()
 
-
     def write_insert_statement_begin(self):
         col_list = ','.join([
             f'{self.table_quote}{col_name}{self.table_quote}' for col_name in self.fields])
         self._fh.write(
             f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} ({col_list}) VALUES')
 
-
     def write_csv_header(self):
         csv_header = ','.join(self.fields)
         self._fh.write(
             f'\\COPY {self.name} ({csv_header}) '
             'FROM STDIN WITH (FORMAT CSV, DELIMITER E\'\\t\')\n')
-
 
     def prep_db_value(self, value):
         if value is None:
@@ -432,7 +411,6 @@ class Table:
         value = value.replace("'", "''").replace('\\', '\\\\').replace('\n', '')
         return f'{self.value_quote}{value}{self.value_quote}'
 
-
     def prep_db_value_csv(self, value):
         if value is None:
             return ''
@@ -443,15 +421,12 @@ class Table:
         value = value.replace('"', '""').replace('\\', '\\\\').replace('\n', '')
         return f'"{value}"'
 
-
     def add_identifier(self, col_name, col_value):
         self.identifiers[col_name] = col_value
-
 
     def add_value(self, col_name, col_value):
         # Simply adds a (col_name, col_value) pair to the list to be output
         self.columns[col_name] = col_value
-
 
     def new_record(self):
         # counters are unique per parent_id, so reset them here
@@ -469,7 +444,6 @@ class Table:
 
         self.record_open = True
 
-
     def get_counter(self, ctr_id):
         # This accepts a counter name and returns the next value for that counter
         # This would be invoked by a Table's children (see in __init__).
@@ -479,7 +453,6 @@ class Table:
         self.counters[ctr_id] += 1
         return self.counters[ctr_id]
 
-
     def create_full_insert(self):
 
         col_list = ','.join([
@@ -488,7 +461,7 @@ class Table:
         val_list = ','.join(
             [f'{col_value}' for col_value in self.identifiers.values()] +
             [
-                f'{self.value_quote}{self.db_string(col_value)}{self.value_quote}'
+                f'{self.value_quote}{self.prep_db_value(col_value)}{self.value_quote}'
                 for col_value in self.columns.values()
             ]
         )
@@ -497,14 +470,12 @@ class Table:
             f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} '
             f'({col_list}) VALUES ({val_list});')
 
-
     def write_values_sql(self):
         values = [
             self.identifiers.get(field, False) or self.columns.get(field, None)
             for field in self.fields]
         self._fh.write(
             f'\n\t({",".join([self.prep_db_value(value) for value in values])}),')
-
 
     def write_values_csv(self):
         values = '\t'.join([
@@ -513,7 +484,6 @@ class Table:
             )
             for field in self.fields])
         self._fh.write(f'{values}\n')
-
 
     def close_record(self):
         if self.write_csv:
@@ -524,7 +494,6 @@ class Table:
         self.columns = {}
         self.identifiers = {}
         self.record_open = False
-
 
     def close_table(self):
         assert not self.columns and not self.identifiers
@@ -567,12 +536,12 @@ def main():
     # -p optional, marks the container tag for a collection of records, would
     #    not be used for single record files
     parser.add_argument(
-        '-p', '--parent', action='store',
-        help='Name of the parent tag (tag containing the group of records')
+        '-p', '--container-tag', action='store',
+        help='Name of the container tag (tag containing the group of records')
 
     # -r REQUIRED, the tag that defines an individual record
     parser.add_argument(
-        '-r', '--record', action='store', required=True,
+        '-r', '--record-tag', action='store', required=True,
         help='Name of the tag that defines a single record')
 
     # -n optional, if the XML has a namespace, give it here. Assumes a single
@@ -585,8 +554,7 @@ def main():
     #    otherwise, starting at that level, give the path.
     parser.add_argument(
         '-i', '--identifier', action='store', required=True,
-        help='Name of the tag whose value contains the unique identifier for '
-             'the record')
+        help='Name of the tag whose value contains the unique identifier for the record')
 
     # -l optional, ran out of good letters, required to use file numbers
     parser.add_argument(
@@ -597,9 +565,8 @@ def main():
     #     reading the core output.
     parser.add_argument(
         '-z', '--recurse', action='store_true',
-        help='If true and a directory is set, the parser will search '
-        'subdirectories for XML files to parse as well, ignored for '
-        'single file parse')
+        help='If true and a directory is set, the parser will search subdirectories for XML '
+        'files to parse as well, ignored for single file parse')
 
     args = parser.parse_args()
 
