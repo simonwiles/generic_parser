@@ -194,7 +194,7 @@ class Parser:
                 relative_path = self.current_output_path.relative_to(self.output_dir)
                 self.master_psql_fh.write(f'\\ir {relative_path.joinpath(table_name)}.sql\n')
                 self.master_win_psql_fh.write(f'\\ir {relative_path}/{table_name}.sql\n')
-                table.close_table()
+                table.close_file()
 
             _fh.write('COMMIT;')
             self.tables = {}
@@ -308,8 +308,7 @@ class Parser:
                     # If the attribute isn't found in the data, use the default
                     #  value instead.
                     if len(attrib_value_all.split(':')) == 3:
-                        self.attrib_defaults[
-                            path][attrib_name] = attrib_value_all
+                        self.attrib_defaults[path][attrib_name] = attrib_value_all
 
             # Now recurse for the children of the node
             for child in node:
@@ -320,13 +319,13 @@ class Parser:
         update_lookup_tables(root, path)
 
     def get_record(self, table_name, table_path=None, parent_table=None):
-        table = self.get_or_create_table(table_name, table_path, parent_table)
+        table = self.get_or_create_output_file(table_name, table_path, parent_table)
         if table.record_open:
             return table
         table.new_record()
         return table
 
-    def get_or_create_table(self, table_name, table_path=None, parent_table=None):
+    def get_or_create_output_file(self, table_name, table_path=None, parent_table=None):
         if table_name in self.tables:
             return self.tables[table_name]
 
@@ -337,31 +336,27 @@ class Parser:
         fields = self.fields[table_name]
         output_path = self.current_output_path.joinpath(f'{table_name}.sql')
 
-        table = Table(
+        table = PostgresCopyFile(
             table_name, fields, output_path, ctr_id, parent_table)
         self.tables[table_name] = table
         return table
 
 
-class Table:
-    """
-    The Table structure simulates a DB Table
-    It has a name, a parent, columns and values.
-    We have some specialized columns called identifiers. These start with the
-     id, then add in the automated counters.
-    The table also maintains a list of counters for its children. This allows
-     the children to call back to the parent and ask for the next number in
-     that counter.
+class OutputFile:
+    """ This class handles a single output file -- it is intended to be subclassed with specific
+         behaviours depending on the kind of file (output format) to be written.
+        It has a name, a parent, columns and values.
+        We have some specialized columns called identifiers. These start with the
+         id, then add in the automated counters.
+        The table also maintains a list of counters for its children. This allows the children to
+         call back to the parent and ask for the next number in that counter.
     """
 
-    # SIMON: this is the place to subclass PostgresTable, MySQLTable...
     def __init__(self, name, fields, output_path, ctr_id=None, parent_table=None):
         # initialization gets the parent
         # If there is a parent, the table first inherits the parent's identifiers
         # It then asks the parent for the next value in it's own identifier and adds
         #  that to the identifier list.
-
-        self.write_csv = True
 
         self.name = name
         self.ctr_id = ctr_id
@@ -370,9 +365,6 @@ class Table:
         self.columns = {}
         self.identifiers = {}
         self.counters = defaultdict(int)
-
-        self.table_quote = '"'
-        self.value_quote = '\''
 
         self.record_open = False
 
@@ -384,42 +376,19 @@ class Table:
 
         self._fh = open(output_path, 'w', encoding='UTF-8')
         logging.debug(f'Opened {self._fh.name} for writing...')
-        if self.write_csv:
-            self.write_csv_header()
-        else:
-            self.write_insert_statement_begin()
+        self.write_header()
 
-    def write_insert_statement_begin(self):
-        col_list = ','.join([
-            f'{self.table_quote}{col_name}{self.table_quote}' for col_name in self.fields])
-        self._fh.write(
-            f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} ({col_list}) VALUES')
+    def write_header():
+        raise NotImplementedError
 
-    def write_csv_header(self):
-        csv_header = ','.join(self.fields)
-        self._fh.write(
-            f'\\COPY {self.name} ({csv_header}) '
-            'FROM STDIN WITH (FORMAT CSV, DELIMITER E\'\\t\')\n')
+    def write_footer():
+        raise NotImplementedError
 
     def prep_db_value(self, value):
-        if value is None:
-            return 'NULL'
+        raise NotImplementedError
 
-        if not isinstance(value, str):
-            return str(value)
-
-        value = value.replace("'", "''").replace('\\', '\\\\').replace('\n', '')
-        return f'{self.value_quote}{value}{self.value_quote}'
-
-    def prep_db_value_csv(self, value):
-        if value is None:
-            return ''
-
-        if not isinstance(value, str):
-            return str(value)
-
-        value = value.replace('"', '""').replace('\\', '\\\\').replace('\n', '')
-        return f'"{value}"'
+    def write_values(self):
+        raise NotImplementedError
 
     def add_identifier(self, col_name, col_value):
         self.identifiers[col_name] = col_value
@@ -453,56 +422,75 @@ class Table:
         self.counters[ctr_id] += 1
         return self.counters[ctr_id]
 
-    def create_full_insert(self):
+    def close_record(self):
+        self.write_values()
+        self.columns = {}
+        self.identifiers = {}
+        self.record_open = False
 
-        col_list = ','.join([
-            f'{self.table_quote}{col_name}{self.table_quote}'
-            for col_name in [*self.identifiers.keys(), *self.columns.keys()]])
-        val_list = ','.join(
-            [f'{col_value}' for col_value in self.identifiers.values()] +
-            [
-                f'{self.value_quote}{self.prep_db_value(col_value)}{self.value_quote}'
-                for col_value in self.columns.values()
-            ]
-        )
+    def close_file(self):
+        assert not self.columns and not self.identifiers
+        self.write_footer()
+        self._fh.close()
 
-        return (
-            f'INSERT INTO {self.table_quote}{self.name}{self.table_quote} '
-            f'({col_list}) VALUES ({val_list});')
 
-    def write_values_sql(self):
+class PostgresCopyFile(OutputFile):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def write_header(self):
+        header = ','.join(self.fields)
+        self._fh.write(
+            f'\\COPY {self.name} ({header}) FROM STDIN WITH (FORMAT CSV, DELIMITER E\'\\t\')\n')
+
+    def write_footer(self):
+        self._fh.write('\\.\n')
+
+    def prep_db_value(self, value):
+        if value is None:
+            return ''
+
+        if not isinstance(value, str):
+            return str(value)
+
+        value = value.replace('"', '""').replace('\\', '\\\\').replace('\n', '')
+        return f'"{value}"'
+
+    def write_values(self):
+        values = '\t'.join([
+            self.prep_db_value(self.identifiers.get(field, False) or self.columns.get(field, None))
+            for field in self.fields])
+        self._fh.write(f'{values}\n')
+
+
+class PostgresInsertsFile(OutputFile):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def write_header(self):
+        col_list = ','.join([f'"{col_name}"' for col_name in self.fields])
+        self._fh.write(f'INSERT INTO "{self.name}" ({col_list}) VALUES')
+
+    def write_footer(self):
+        self._fh.seek(self._fh.tell() - 1, os.SEEK_SET)
+        self._fh.write(';\n')
+
+    def prep_db_value(self, value):
+        if value is None:
+            return 'NULL'
+
+        if not isinstance(value, str):
+            return str(value)
+
+        value = value.replace("'", "''").replace('\\', '\\\\').replace('\n', '')
+        return f"'{value}'"
+
+    def write_values(self):
         values = [
             self.identifiers.get(field, False) or self.columns.get(field, None)
             for field in self.fields]
         self._fh.write(
             f'\n\t({",".join([self.prep_db_value(value) for value in values])}),')
-
-    def write_values_csv(self):
-        values = '\t'.join([
-            self.prep_db_value_csv(
-                self.identifiers.get(field, False) or self.columns.get(field, None)
-            )
-            for field in self.fields])
-        self._fh.write(f'{values}\n')
-
-    def close_record(self):
-        if self.write_csv:
-            self.write_values_csv()
-        else:
-            self.write_values_sql()
-
-        self.columns = {}
-        self.identifiers = {}
-        self.record_open = False
-
-    def close_table(self):
-        assert not self.columns and not self.identifiers
-        if self.write_csv:
-            self._fh.write('\\.\n')
-        else:
-            self._fh.seek(self._fh.tell() - 1, os.SEEK_SET)
-            self._fh.write(';\n')
-        self._fh.close()
 
 
 def main():
