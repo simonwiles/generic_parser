@@ -418,7 +418,7 @@ CREATE TABLE raw_data.wos_conference (
 	conf_location_count character varying,
 	sponsor_count character varying,
 	conf_type character varying,
-	lang_id character varying 
+	lang_id character varying
 );
 
 ALTER TABLE ONLY raw_data.wos_conference
@@ -1391,7 +1391,9 @@ GRANT ALL ON TABLE raw_data.wos_abstract_paragraphs TO postgres;
 CREATE TABLE raw_data.wos_reviewed_languages (
         id character varying NOT NULL,
         language_id integer NOT NULL,
-        language character varying NOT NULL
+        language character varying NOT NULL,
+        language_type character varying,
+        status character varying
 );
 ALTER TABLE ONLY raw_data.wos_reviewed_languages
 	ADD CONSTRAINT unique_reviewed_languages UNIQUE (id, language_id);
@@ -1402,6 +1404,9 @@ COMMENT ON TABLE raw_data.wos_reviewed_languages IS 'Item Record Language of Rev
 COMMENT ON COLUMN raw_data.wos_reviewed_languages.id IS 'Record ID (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_reviewed_languages.language_id IS 'Order of language record (internal primary key)';
 COMMENT ON COLUMN raw_data.wos_reviewed_languages.language IS 'Language';
+COMMENT ON COLUMN raw_data.wos_reviewed_languages.language_type IS 'Undocumented';
+COMMENT ON COLUMN raw_data.wos_reviewed_languages.status IS 'Undocumented';
+
 
 REVOKE ALL ON TABLE raw_data.wos_reviewed_languages FROM PUBLIC;
 REVOKE ALL ON TABLE raw_data.wos_reviewed_languages FROM postgres;
