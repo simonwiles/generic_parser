@@ -1279,8 +1279,7 @@ CREATE TABLE raw_data.wos_grant_alt_agencies (
 	alt_agency_id integer NOT NULL,
 	alt_agency character varying,
 	alt_agency_language character varying,
-	alt_agency_preferred character varying,
-	file_number integer NOT NULL
+	alt_agency_preferred character varying
 );
 ALTER TABLE ONLY raw_data.wos_grant_alt_agencies
 	ADD CONSTRAINT unique_grant_alt_agencies UNIQUE(id, grant_id, alt_agency_id);
